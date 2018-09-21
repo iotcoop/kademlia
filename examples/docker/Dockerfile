@@ -22,7 +22,7 @@ RUN pip3 install aiodns
 
 RUN echo "JAVA_HOME=\"/usr/lib/jvm/java-8-oracle/jre\"" >> /etc/environment
 RUN /bin/bash -c "source /etc/environment"
-RUN cd /var/dht && git clone https://github.com/iotcoop/eqitii-dht
+RUN cd /var/dht && git clone -b test-replication https://github.com/iotcoop/eqitii-dht
 
 COPY dht.py /var/dht
 COPY start_spark.sh /var/dht
