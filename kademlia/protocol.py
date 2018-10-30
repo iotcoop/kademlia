@@ -1,12 +1,18 @@
+import json
 import random
 import asyncio
 import logging
 
 from rpcudp.protocol import RPCProtocol
 
+from kademlia.config import Config
+from kademlia.utils import digest, validate_authorization, check_new_value_valid
+from kademlia.crawling import ValueSpiderCrawl
+from kademlia.crypto import Crypto
+from kademlia.dto.dto import Value, JsonSerializable
+from kademlia.exceptions import UnauthorizedOperationException, InvalidSignException
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
-from kademlia.utils import digest
 
 log = logging.getLogger(__name__)
 
@@ -36,12 +42,40 @@ class KademliaProtocol(RPCProtocol):
         self.welcomeIfNewNode(source)
         return self.sourceNode.id
 
-    def rpc_store(self, sender, nodeid, key, value):
-        source = Node(nodeid, sender[0], sender[1])
-        self.welcomeIfNewNode(source)
+    async def rpc_store(self, sender, nodeid, key, value):
         log.debug("got a store request from %s, storing '%s'='%s'",
                   sender, key.hex(), value)
-        self.storage[key] = value
+
+        try:
+            des_value = Value.of_json(json.loads(value))
+            if des_value.authorization is not None:
+                validate_authorization(key, des_value)
+
+            log.debug(f"Received value for key {key.hex()} is valid,"
+                      f" going to retrieve values stored under key : {key.hex}")
+            stored_value_json = await self.get(key)
+            if stored_value_json is not None:
+                stored_value = Value.of_json(json.loads(stored_value_json))
+                check_new_value_valid(key, stored_value, des_value)
+
+            source = Node(nodeid, sender[0], sender[1])
+            self.welcomeIfNewNode(source)
+
+            self.storage[key] = value
+
+        except AssertionError:
+            log.exception("Unable to store value, got value with unsupported format: %s", value)
+            data = f"Received request to store data of unsupported protocol from node : " \
+                   f"[IP : {sender[0]}, PORT: {sender[1]}]"
+            value = Crypto.get_signed_value(key, data)
+            self.storage[key] = json.dumps(JsonSerializable.__to_dict__(value))
+
+        except UnauthorizedOperationException:
+            log.exception("Unable to store value, unauthorized storing attempt")
+
+        except InvalidSignException:
+            log.exception("Signature is not valid")
+
         return True
 
     def rpc_find_node(self, sender, nodeid, key):
@@ -126,3 +160,17 @@ class KademliaProtocol(RPCProtocol):
         log.info("got successful response from %s", node)
         self.welcomeIfNewNode(node)
         return result
+
+    async def get(self, key):
+        log.info("Looking up key %s", key)
+        # if this node has it, return it
+        if self.storage.get(key) is not None:
+            return self.storage.get(key)
+        node = Node(key)
+        nearest = self.router.findNeighbors(node)
+        if len(nearest) == 0:
+            log.warning("There are no known neighbors to get key %s", key)
+            return None
+
+        spider = ValueSpiderCrawl(self, node, nearest, Config.K_SIZE, Config.ALPHA)
+        return await spider.find()

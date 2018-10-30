@@ -5,8 +5,12 @@ import sys
 import ast
 
 from aiohttp import web
+
+from kademlia.dto.dto import Value
+from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException
 from kademlia.network import Server
 from kademlia.storage import DiskStorage
+
 
 async def read_key(request):
     global server
@@ -27,17 +31,13 @@ async def set_key(request):
     key = request.match_info.get('key')
     try:
         data = await request.json()
-        await server.set(key, json.dumps(data))
-        keys = await server.get('keys')
-        if not keys:
-            keys = []
-        else:
-            keys = ast.literal_eval(keys)
-        if not key in keys:
-            keys.append(key)
-            await server.set('keys', str(keys))
-    except:
-        raise web.HTTPInternalServerError()
+        value = Value.of_json(data)
+        await server.set_auth(key, value)
+    except InvalidSignException as ex:
+        raise web.HTTPBadRequest
+    except UnauthorizedOperationException:
+        raise web.HTTPUnauthorized
+
     return web.Response(text=str(data))
 
 

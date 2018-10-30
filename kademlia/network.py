@@ -1,13 +1,15 @@
 """
 Package for interacting on the network at a high level.
 """
+import json
 import random
 import pickle
 import asyncio
 import logging
 
+from kademlia.dto.dto import Value, JsonSerializable
 from kademlia.protocol import KademliaProtocol
-from kademlia.utils import digest
+from kademlia.utils import digest, validate_authorization, check_new_value_valid
 from kademlia.storage import ForgetfulStorage
 from kademlia.node import Node
 from kademlia.crawling import ValueSpiderCrawl
@@ -153,6 +155,23 @@ class Server(object):
                                   self.ksize, self.alpha)
         return await spider.find()
 
+    async def set_auth(self, key, value: Value):
+        """
+        Set the given string key to the given value in the network.
+        """
+        log.debug("Going to process save request")
+        if value.authorization is not None:
+            validate_authorization(digest(key), value)
+
+        log.debug(f"Going to retrieve stored value for key: {digest(key)}")
+        stored_value_json = await self.get(key)
+
+        if stored_value_json is not None:
+            stored_value = Value.of_json(json.loads(stored_value_json))
+            check_new_value_valid(digest(key), stored_value, value)
+
+        return await self.set(key, json.dumps(JsonSerializable.__to_dict__(value)))
+
     async def set(self, key, value):
         """
         Set the given string key to the given value in the network.
@@ -161,6 +180,7 @@ class Server(object):
             raise TypeError(
                 "Value must be of type int, float, bool, str, or bytes"
             )
+
         log.info("setting '%s' = '%s' on network", key, value)
         dkey = digest(key)
         return await self.set_digest(dkey, value)
@@ -256,3 +276,4 @@ def check_dht_value_type(value):
         ]
     )
     return type(value) in typeset
+
