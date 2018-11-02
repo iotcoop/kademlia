@@ -93,3 +93,18 @@ def check_new_value_valid(dkey, stored_value: Value, new_value: Value):
             raise UnauthorizedOperationException
     else:
         raise UnauthorizedOperationException
+
+
+def get_most_common_response(responses):
+    from collections import Counter
+
+    if responses:
+        if not isinstance(responses, list):
+            responses = [responses]
+
+        values = [r['value'] for r in responses]
+        value_counts = Counter(values)
+
+        return value_counts.most_common(1)[0][0]
+    else:
+        return None

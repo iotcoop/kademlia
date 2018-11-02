@@ -16,13 +16,11 @@ async def read_key(request):
     global server
     key = request.match_info.get('key')
     try:
-        text = await server.get(key)
+        resp = await server.get(key)
     except:
         raise web.HTTPInternalServerError()
-    if text:
-        return web.Response(text=text)
-    else:
-        return web.Response(text=KEY_ABSENT_MESSAGE)
+
+    return web.json_response(resp)
 
 
 async def set_key(request):
@@ -32,13 +30,13 @@ async def set_key(request):
     try:
         data = await request.json()
         value = Value.of_json(data)
-        await server.set_auth(key, value)
+        resp = await server.set_auth(key, value)
     except InvalidSignException as ex:
         raise web.HTTPBadRequest
     except UnauthorizedOperationException:
         raise web.HTTPUnauthorized
 
-    return web.Response(text=str(data))
+    return web.json_response(resp)
 
 
 async def read_all(request):

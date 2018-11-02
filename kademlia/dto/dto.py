@@ -1,3 +1,6 @@
+from kademlia.crypto import Crypto
+
+
 class JsonSerializable(object):
 
     @staticmethod
@@ -61,6 +64,20 @@ class Value(JsonSerializable):
             return Value.of_data(dct['data'])
         else:
             return Value.of_auth(dct['data'], Authorization.of_json(dct['authorization']))
+
+    @staticmethod
+    def get_signed(dkey, data, time=None, priv_key_path='key.pem', pub_key_path='public.pem'):
+        import base64
+        from kademlia.utils import digest
+
+        dval = digest(str(dkey) + str(data) + str(time))
+
+        signature = str(base64.encodebytes(Crypto.get_signature(dval, open(priv_key_path).read().encode('ascii'))))[1:]
+
+        pub_key = str(base64.b64encode(open(pub_key_path).read().encode('ascii')))[1:]
+        return Value.of_auth(data,
+                             Authorization(PublicKey(pub_key, time),
+                                           signature.replace('\\n', '')))
 
 
 class PublicKey(JsonSerializable):

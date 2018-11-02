@@ -6,7 +6,7 @@ import logging
 from rpcudp.protocol import RPCProtocol
 
 from kademlia.config import Config
-from kademlia.utils import digest, validate_authorization, check_new_value_valid
+from kademlia.utils import digest, validate_authorization, check_new_value_valid, get_most_common_response
 from kademlia.crawling import ValueSpiderCrawl
 from kademlia.crypto import Crypto
 from kademlia.dto.dto import Value, JsonSerializable
@@ -37,6 +37,9 @@ class KademliaProtocol(RPCProtocol):
     def rpc_stun(self, sender):
         return sender
 
+    def rpc_known_nodes(self):
+        return [node for bucket in self.router.buckets for node in bucket.nodes.values()]
+
     def rpc_ping(self, sender, nodeid):
         source = Node(nodeid, sender[0], sender[1])
         self.welcomeIfNewNode(source)
@@ -53,8 +56,8 @@ class KademliaProtocol(RPCProtocol):
 
             log.debug(f"Received value for key {key.hex()} is valid,"
                       f" going to retrieve values stored under key : {key.hex}")
-            stored_value_json = await self.get(key)
-            if stored_value_json is not None:
+            stored_value_json = await self.get_most_common(key)
+            if stored_value_json:
                 stored_value = Value.of_json(json.loads(stored_value_json))
                 check_new_value_valid(key, stored_value, des_value)
 
@@ -67,7 +70,7 @@ class KademliaProtocol(RPCProtocol):
             log.exception("Unable to store value, got value with unsupported format: %s", value)
             data = f"Received request to store data of unsupported protocol from node : " \
                    f"[IP : {sender[0]}, PORT: {sender[1]}]"
-            value = Crypto.get_signed_value(key, data)
+            value = Value.get_signed(key, data)
             self.storage[key] = json.dumps(JsonSerializable.__to_dict__(value))
 
         except UnauthorizedOperationException:
@@ -93,7 +96,8 @@ class KademliaProtocol(RPCProtocol):
         value = self.storage.get(key, None)
         if value is None:
             return self.rpc_find_node(sender, nodeid, key)
-        return {'value': value}
+        signed_value = Crypto.signed_get_response(key, value)
+        return signed_value
 
     async def callFindNode(self, nodeToAsk, nodeToFind):
         address = (nodeToAsk.ip, nodeToAsk.port)
@@ -115,6 +119,11 @@ class KademliaProtocol(RPCProtocol):
     async def callStore(self, nodeToAsk, key, value):
         address = (nodeToAsk.ip, nodeToAsk.port)
         result = await self.store(address, self.sourceNode.id, key, value)
+        return self.handleCallResponse(result, nodeToAsk)
+
+    async def callKnownNodes(self, nodeToAsk):
+        address = (nodeToAsk.ip, nodeToAsk.port)
+        result = await self.known_nodes(address)
         return self.handleCallResponse(result, nodeToAsk)
 
     def welcomeIfNewNode(self, node):
@@ -161,16 +170,22 @@ class KademliaProtocol(RPCProtocol):
         self.welcomeIfNewNode(node)
         return result
 
-    async def get(self, key):
-        log.info("Looking up key %s", key)
-        # if this node has it, return it
-        if self.storage.get(key) is not None:
-            return self.storage.get(key)
+    async def get_most_common(self, key):
+        log.info("Looking up key %s", key.hex())
         node = Node(key)
         nearest = self.router.findNeighbors(node)
         if len(nearest) == 0:
             log.warning("There are no known neighbors to get key %s", key)
             return None
-
+        # if this node has it, sign and add to found values it
+        local_value = self.storage.get(key, None)
         spider = ValueSpiderCrawl(self, node, nearest, Config.K_SIZE, Config.ALPHA)
-        return await spider.find()
+
+        if local_value:
+            local_value = Crypto.signed_get_response(key, local_value)
+            responses = await spider.find([local_value])
+        else:
+            responses = await spider.find()
+
+        return get_most_common_response(responses)
+

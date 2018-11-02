@@ -1,8 +1,9 @@
 from collections import Counter
 import logging
 
+from kademlia.config import Config
 from kademlia.node import Node, NodeHeap
-from kademlia.utils import gather_dict
+from kademlia.utils import gather_dict, digest
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class SpiderCrawl(object):
         log.info("creating spider with peers: %s", peers)
         self.nearest.push(peers)
 
-    async def _find(self, rpcmethod):
+    async def _find(self, rpcmethod, found_values=None):
         """
         Get either a value or list of nodes.
 
@@ -60,9 +61,9 @@ class SpiderCrawl(object):
             ds[peer.id] = rpcmethod(peer, self.node)
             self.nearest.markContacted(peer)
         found = await gather_dict(ds)
-        return await self._nodesFound(found)
+        return await self._nodesFound(found, found_values)
 
-    async def _nodesFound(self, responses):
+    async def _nodesFound(self, responses, found_values=None):
         raise NotImplementedError
 
 
@@ -73,54 +74,36 @@ class ValueSpiderCrawl(SpiderCrawl):
         # section 2.3 so we can set the key there if found
         self.nearestWithoutValue = NodeHeap(self.node, 1)
 
-    async def find(self):
+    async def find(self, found_values=None):
         """
         Find either the closest nodes or the value requested.
         """
-        return await self._find(self.protocol.callFindValue)
+        return await self._find(self.protocol.callFindValue, found_values)
 
-    async def _nodesFound(self, responses):
+    async def _nodesFound(self, responses, found_values=None):
         """
         Handle the result of an iteration in _find.
         """
+        if found_values is None:
+            found_values = []
+
         toremove = []
-        foundValues = []
         for peerid, response in responses.items():
             response = RPCFindResponse(response)
             if not response.happened():
                 toremove.append(peerid)
-            elif response.hasValue():
-                foundValues.append(response.getValue())
+            elif response.hasValue() and response.signValid(self.node.id):
+                found_values.append(response.getValue())
             else:
                 peer = self.nearest.getNodeById(peerid)
                 self.nearestWithoutValue.push(peer)
                 self.nearest.push(response.getNodeList())
         self.nearest.remove(toremove)
 
-        if len(foundValues) > 0:
-            return await self._handleFoundValues(foundValues)
-        if self.nearest.allBeenContacted():
-            # not found!
-            return None
-        return await self.find()
+        if len(found_values) >= Config.VALUES_TO_WAIT or self.nearest.allBeenContacted():
+            return found_values
 
-    async def _handleFoundValues(self, values):
-        """
-        We got some values!  Exciting.  But let's make sure
-        they're all the same or freak out a little bit.  Also,
-        make sure we tell the nearest node that *didn't* have
-        the value to store it.
-        """
-        valueCounts = Counter(values)
-        if len(valueCounts) != 1:
-            log.warning("Got multiple values for key %i: %s",
-                        self.node.long_id, str(values))
-        value = valueCounts.most_common(1)[0][0]
-
-        peerToSaveTo = self.nearestWithoutValue.popleft()
-        if peerToSaveTo is not None:
-            await self.protocol.callStore(peerToSaveTo, self.node.id, value)
-        return value
+        return await self.find(found_values)
 
 
 class NodeSpiderCrawl(SpiderCrawl):
@@ -130,7 +113,7 @@ class NodeSpiderCrawl(SpiderCrawl):
         """
         return await self._find(self.protocol.callFindNode)
 
-    async def _nodesFound(self, responses):
+    async def _nodesFound(self, responses, found_values=None):
         """
         Handle the result of an iteration in _find.
         """
@@ -169,8 +152,15 @@ class RPCFindResponse(object):
     def hasValue(self):
         return isinstance(self.response[1], dict)
 
+    def signValid(self, node_id):
+        from kademlia.crypto import Crypto
+
+        dval = digest(str(node_id) + str(self.response[1]['value']) + str(None))
+        return Crypto.check_signature(dval, self.response[1]['authorization']['sign'],
+                                      self.response[1]['authorization']['pub_key'])
+
     def getValue(self):
-        return self.response[1]['value']
+        return self.response[1]
 
     def getNodeList(self):
         """
