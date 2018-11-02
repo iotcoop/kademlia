@@ -136,8 +136,6 @@ class Server(object):
         return Node(result[1], addr[0], addr[1]) if result[0] else None
 
     async def get(self, key):
-
-        await self.get_known_nodes()
         """
         Get a key if the network has it.
 
@@ -195,9 +193,6 @@ class Server(object):
         log.info("setting '%s' = '%s' on network", key, value)
         dkey = digest(key)
         return await self.set_digest(dkey, value)
-
-    async def get_known_nodes(self):
-        log.debug(self.protocol.rpc_known_nodes())
 
     async def set_digest(self, dkey, value):
         """
