@@ -8,8 +8,6 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
-from kademlia.dto.dto import Value, Authorization, PublicKey
-
 log = logging.getLogger(__name__)
 
 
@@ -54,13 +52,22 @@ class Crypto(object):
             return False
 
     @staticmethod
-    def get_signed_value(dkey, data, time=None, priv_key_path='key.pem', pub_key_path='public.pem'):
+    def signed_get_response(dkey, data, time=None, priv_key_path='key.pem', pub_key_path='public.pem'):
         from kademlia.utils import digest
+
+        log.debug(f"Going to sign stored data with key: [{dkey.hex()}]")
         dval = digest(str(dkey) + str(data) + str(time))
 
+        # computing signature and encoding in base64 using ascii encoding
         signature = str(base64.encodebytes(Crypto.get_signature(dval, open(priv_key_path).read().encode('ascii'))))[1:]
 
+        # encoding node public key in base64 using ascii encoding
         pub_key = str(base64.b64encode(open(pub_key_path).read().encode('ascii')))[1:]
-        return Value.of_auth(data,
-                             Authorization(PublicKey(pub_key, time),
-                                           signature.replace('\\n', '')))
+        log.debug(f"Successfully signed stored data with key: [{dkey.hex()}]")
+
+        return {'value': data,
+                'authorization': {
+                    'pub_key': pub_key[1:-1],
+                    'sign': signature.replace('\\n', '')[1:-1]
+                }
+                }

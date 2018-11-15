@@ -7,9 +7,10 @@ import pickle
 import asyncio
 import logging
 
+from kademlia.crypto import Crypto
 from kademlia.dto.dto import Value, JsonSerializable
 from kademlia.protocol import KademliaProtocol
-from kademlia.utils import digest, validate_authorization, check_new_value_valid
+from kademlia.utils import digest, validate_authorization, check_new_value_valid, get_most_common_response
 from kademlia.storage import ForgetfulStorage
 from kademlia.node import Node
 from kademlia.crawling import ValueSpiderCrawl
@@ -144,8 +145,7 @@ class Server(object):
         log.info("Looking up key %s", key)
         dkey = digest(key)
         # if this node has it, return it
-        if self.storage.get(dkey) is not None:
-            return self.storage.get(dkey)
+
         node = Node(dkey)
         nearest = self.protocol.router.findNeighbors(node)
         if len(nearest) == 0:
@@ -153,7 +153,16 @@ class Server(object):
             return None
         spider = ValueSpiderCrawl(self.protocol, node, nearest,
                                   self.ksize, self.alpha)
-        return await spider.find()
+
+        local_value = self.storage.get(dkey, None)
+
+        if local_value:
+            local_value = Crypto.signed_get_response(dkey, local_value)
+            responses = await spider.find([local_value])
+        else:
+            responses = await spider.find()
+
+        return responses
 
     async def set_auth(self, key, value: Value):
         """
@@ -164,10 +173,10 @@ class Server(object):
             validate_authorization(digest(key), value)
 
         log.debug(f"Going to retrieve stored value for key: {digest(key)}")
-        stored_value_json = await self.get(key)
-
-        if stored_value_json is not None:
-            stored_value = Value.of_json(json.loads(stored_value_json))
+        stored_value_json = get_most_common_response(await self.get(key))
+        if stored_value_json:
+            stored_value_json = json.loads(stored_value_json)
+            stored_value = Value.of_json(stored_value_json)
             check_new_value_valid(digest(key), stored_value, value)
 
         return await self.set(key, json.dumps(JsonSerializable.__to_dict__(value)))
