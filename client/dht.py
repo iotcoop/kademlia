@@ -39,41 +39,6 @@ async def set_key(request):
     return web.json_response(resp)
 
 
-async def read_all(request):
-    global server
-
-    try:
-        keys = await server.get('keys')
-        if not keys:
-            return web.Response(text=NO_KEYS)
-        result = {}
-        keys = ast.literal_eval(keys)
-        for key in keys:
-            value = await server.get(key)
-            result[key] = json.loads(value)
-        return web.Response(text=json.dumps(result))
-    except:
-        raise web.HTTPInternalServerError()
-
-
-async def read_all_list(request):
-    global server
-
-    try:
-        keys = await server.get('keys')
-        if not keys:
-            return web.Response(text=NO_KEYS)
-        result = []
-        keys = ast.literal_eval(keys)
-        for key in keys:
-            obj = {"key": key}
-            value = await server.get(key)
-            obj["value"] = json.loads(value)
-            result.append(obj)
-        return web.Response(text=json.dumps(result))
-    except:
-        raise web.HTTPInternalServerError()
-
 if __name__ == '__main__':
     KADEMLIA_PORT = int(sys.argv[2])
     API_PORT = int(sys.argv[3])
@@ -95,12 +60,10 @@ if __name__ == '__main__':
     log.setLevel(logging.DEBUG)
 
     if sys.argv[1] != "127.0.0.1":
-        bootstrap_node = (sys.argv[1], KADEMLIA_PORT)
+        bootstrap_node = (sys.argv[1], KADEMLIA_PORT - 1)
         loop.run_until_complete(server.bootstrap([bootstrap_node]))
 
     app = web.Application()
-    app.add_routes([web.get('/dht/all', read_all)])
-    app.add_routes([web.get('/dht/all_list', read_all_list)])
     app.add_routes([web.get('/dht/{key}', read_key)])
     app.add_routes([web.post('/dht/{key}', set_key)])
 
