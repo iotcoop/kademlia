@@ -1,9 +1,7 @@
-class InvalidJsonException(Exception):
+class InvalidValueFormatException(Exception):
 
     def __init__(self, message):
-        MESSAGE_PATTERN = 'Can not parse json : %s'
-
-        super(Exception, self).__init__(MESSAGE_PATTERN.format(message))
+        super(Exception, self).__init__(message)
 
 
 class UnauthorizedOperationException(BaseException):
