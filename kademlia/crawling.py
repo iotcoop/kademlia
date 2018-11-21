@@ -1,7 +1,7 @@
-from collections import Counter
 import logging
 
 from kademlia.config import Config
+from kademlia.dto.dto import Value
 from kademlia.node import Node, NodeHeap
 from kademlia.utils import gather_dict, digest
 
@@ -155,9 +155,10 @@ class RPCFindResponse(object):
     def signValid(self, node_id):
         from kademlia.crypto import Crypto
 
-        dval = digest(str(node_id) + str(self.response[1]['value']) + str(None))
-        return Crypto.check_signature(dval, self.response[1]['authorization']['sign'],
-                                      self.response[1]['authorization']['pub_key'])
+        response = Value.of_json(self.response[1])
+
+        dval = digest(str(node_id) + str(response.data) + str(response.authorization.pub_key.exp_time))
+        return Crypto.check_signature(dval, response.authorization.sign, response.authorization.pub_key.key)
 
     def getValue(self):
         return self.response[1]

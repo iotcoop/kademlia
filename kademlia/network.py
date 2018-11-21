@@ -7,10 +7,9 @@ import pickle
 import asyncio
 import logging
 
-from kademlia.crypto import Crypto
-from kademlia.dto.dto import Value, JsonSerializable
+from kademlia.dto.dto import Value
 from kademlia.protocol import KademliaProtocol
-from kademlia.utils import digest, validate_authorization, check_new_value_valid, get_most_common_response
+from kademlia.utils import digest, validate_authorization, check_new_value_valid, select_most_common_response
 from kademlia.storage import ForgetfulStorage
 from kademlia.node import Node
 from kademlia.crawling import ValueSpiderCrawl
@@ -99,7 +98,7 @@ class Server(object):
 
         # now republish keys older than one hour
         for dkey, value in self.storage.iteritemsOlderThan(3600):
-            await self.set_digest(dkey, value)
+            await self.__set_digest(dkey, value)
 
     def bootstrappableNeighbors(self):
         """
@@ -157,44 +156,58 @@ class Server(object):
         local_value = self.storage.get(dkey, None)
 
         if local_value:
-            local_value = Crypto.signed_get_response(dkey, local_value)
+            local_value = Value.get_signed(dkey, local_value).to_dict()
             responses = await spider.find([local_value])
         else:
             responses = await spider.find()
 
-        return responses
-
-    async def set_auth(self, key, value: Value):
-        """
-        Set the given string key to the given value in the network.
-        """
-        log.debug("Going to process save request")
-        if value.authorization is not None:
-            validate_authorization(digest(key), value)
-
-        log.debug(f"Going to retrieve stored value for key: {digest(key)}")
-        stored_value_json = get_most_common_response(await self.get(key))
-        if stored_value_json:
-            stored_value_json = json.loads(stored_value_json)
-            stored_value = Value.of_json(stored_value_json)
-            check_new_value_valid(digest(key), stored_value, value)
-
-        return await self.set(key, json.dumps(JsonSerializable.__to_dict__(value)))
+        return Value.get_signed(dkey, select_most_common_response(responses)).to_dict()
 
     async def set(self, key, value):
         """
         Set the given string key to the given value in the network.
         """
-        if not check_dht_value_type(value):
-            raise TypeError(
-                "Value must be of type int, float, bool, str, or bytes"
-            )
 
-        log.info("setting '%s' = '%s' on network", key, value)
+        log.info(f"Going to set {key} = {value} on network")
+
+        if isinstance(value, list):
+            return await self.__set_controlled(key, [Value.of_json(elem) for elem in value])
+        else:
+            return await self.__set_secure(key, Value.of_json(value))
+
+    async def __set_controlled(self, key, values: list):
+
         dkey = digest(key)
-        return await self.set_digest(dkey, value)
 
-    async def set_digest(self, dkey, value):
+        for value in values:
+            if value.authorization is not None:
+                validate_authorization(dkey, value)
+
+        log.debug(f"Going to retrieve stored value for key: {dkey}")
+
+        return await self.__set_digest(dkey, json.dumps([value.to_dict() for value in values]))
+
+    async def __set_secure(self, key, value: Value):
+        """
+        Set the given string key to the given value in the network.
+        """
+
+        dkey = digest(key)
+
+        log.debug("Going to process save request")
+        if value.authorization is not None:
+            validate_authorization(dkey, value)
+
+        log.debug(f"Going to retrieve stored value for key: {dkey}")
+        value_response = Value.of_json(await self.get(key))
+        if value_response.data:
+            stored_value_json = json.loads(value_response.data)
+            stored_value = Value.of_json(stored_value_json)
+            check_new_value_valid(dkey, stored_value, value)
+
+        return await self.__set_digest(dkey, json.dumps(value.to_dict()))
+
+    async def __set_digest(self, dkey, value):
         """
         Set the given SHA1 digest key (bytes) to the given value in the
         network.

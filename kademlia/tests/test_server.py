@@ -75,17 +75,17 @@ class ServerTests(unittest.TestCase):
             server.set = Mock(return_value=async_return(True))
             value = Mock()
             value.authorization = None
-            await server.set_auth('test key', value)
+            await server.set('test key', value)
             server.get.assert_called_with('test key')
 
             value.authorization = 'auth'
-            await server.set_auth('test key', value)
+            await server.set('test key', value)
             mocked_va.assert_called_with(b'\xb2\x95\x8d\x18Pbw"`\xc3\xfa\x82\xcce\x1e\x12mT\xb2h', value)
 
             server.get = Mock(return_value=async_return('some value'))
             json.loads = Mock(return_value='json')
             Value.of_json = Mock(return_value='stored value')
-            await server.set_auth('test key', value)
+            await server.set('test key', value)
             json.loads.assert_called_with('some value')
             Value.of_json.assert_called_with('json')
             mocked_cnvv.assert_called_with(b'\xb2\x95\x8d\x18Pbw"`\xc3\xfa\x82\xcce\x1e\x12mT\xb2h', 'stored value', value)

@@ -50,24 +50,3 @@ class Crypto(object):
             return True
         except InvalidSignature:
             return False
-
-    @staticmethod
-    def signed_get_response(dkey, data, time=None, priv_key_path='key.pem', pub_key_path='public.pem'):
-        from kademlia.utils import digest
-
-        log.debug(f"Going to sign stored data with key: [{dkey.hex()}]")
-        dval = digest(str(dkey) + str(data) + str(time))
-
-        # computing signature and encoding in base64 using ascii encoding
-        signature = str(base64.encodebytes(Crypto.get_signature(dval, open(priv_key_path).read().encode('ascii'))))[1:]
-
-        # encoding node public key in base64 using ascii encoding
-        pub_key = str(base64.b64encode(open(pub_key_path).read().encode('ascii')))[1:]
-        log.debug(f"Successfully signed stored data with key: [{dkey.hex()}]")
-
-        return {'value': data,
-                'authorization': {
-                    'pub_key': pub_key[1:-1],
-                    'sign': signature.replace('\\n', '')[1:-1]
-                }
-                }

@@ -6,10 +6,9 @@ import logging
 from rpcudp.protocol import RPCProtocol
 
 from kademlia.config import Config
-from kademlia.utils import digest, validate_authorization, check_new_value_valid, get_most_common_response
+from kademlia.utils import digest, validate_authorization, check_new_value_valid, select_most_common_response
 from kademlia.crawling import ValueSpiderCrawl
-from kademlia.crypto import Crypto
-from kademlia.dto.dto import Value, JsonSerializable
+from kademlia.dto.dto import Value
 from kademlia.exceptions import UnauthorizedOperationException, InvalidSignException
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
@@ -56,7 +55,7 @@ class KademliaProtocol(RPCProtocol):
 
             log.debug(f"Received value for key {key.hex()} is valid,"
                       f" going to retrieve values stored under key : {key.hex}")
-            stored_value_json = await self.get_most_common(key)
+            stored_value_json = await self.__get_most_common(key)
             if stored_value_json:
                 stored_value = Value.of_json(json.loads(stored_value_json))
                 check_new_value_valid(key, stored_value, des_value)
@@ -68,10 +67,6 @@ class KademliaProtocol(RPCProtocol):
 
         except AssertionError:
             log.exception("Unable to store value, got value with unsupported format: %s", value)
-            data = f"Received request to store data of unsupported protocol from node : " \
-                   f"[IP : {sender[0]}, PORT: {sender[1]}]"
-            value = Value.get_signed(key, data)
-            self.storage[key] = json.dumps(JsonSerializable.__to_dict__(value))
 
         except UnauthorizedOperationException:
             log.exception("Unable to store value, unauthorized storing attempt")
@@ -96,7 +91,7 @@ class KademliaProtocol(RPCProtocol):
         value = self.storage.get(key, None)
         if value is None:
             return self.rpc_find_node(sender, nodeid, key)
-        signed_value = Crypto.signed_get_response(key, value)
+        signed_value = Value.get_signed(key, value).to_dict()
         return signed_value
 
     async def callFindNode(self, nodeToAsk, nodeToFind):
@@ -170,7 +165,7 @@ class KademliaProtocol(RPCProtocol):
         self.welcomeIfNewNode(node)
         return result
 
-    async def get_most_common(self, key):
+    async def __get_most_common(self, key):
         log.info("Looking up key %s", key.hex())
         node = Node(key)
         nearest = self.router.findNeighbors(node)
@@ -182,10 +177,10 @@ class KademliaProtocol(RPCProtocol):
         spider = ValueSpiderCrawl(self, node, nearest, Config.K_SIZE, Config.ALPHA)
 
         if local_value:
-            local_value = Crypto.signed_get_response(key, local_value)
+            local_value = Value.get_signed(key, local_value).to_dict()
             responses = await spider.find([local_value])
         else:
             responses = await spider.find()
 
-        return get_most_common_response(responses)
+        return select_most_common_response(responses)
 

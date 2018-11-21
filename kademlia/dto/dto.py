@@ -1,83 +1,28 @@
+import logging
+
+from kademlia.config import Config
 from kademlia.crypto import Crypto
+from kademlia.exceptions import InvalidValueFormatException
+
+log = logging.getLogger(__name__)
 
 
 class JsonSerializable(object):
 
-    @staticmethod
-    def __to_dict__(obj):
+    def to_dict(self):
+        json_dict = {}
+        for k, v in self.__dict__.items():
+            if '__' not in k:
+                # Remove `_` from field name
+                k = k[1:]
+                if isinstance(v, JsonSerializable):
+                    json_dict[k] = v.to_dict()
+                elif v is None or type(v) in [str, int, bool, dict, list]:
+                    json_dict[k] = v
+                else:
+                    json_dict[k] = str(v)
 
-        if isinstance(obj, JsonSerializable):
-            fields = [f for f in dir(obj) if not callable(f) and not f.startswith('__') and f.startswith('_')]
-            return {
-                key[1:]: JsonSerializable.__to_dict__(obj.__dict__[key]) for key in fields
-            }
-        elif type(obj) in [str, int, bool, dict, list]:
-            return obj
-        elif obj is None:
-            return obj
-        else:
-            return str(obj)
-
-
-class Value(JsonSerializable):
-
-    def __init__(self, data, authorization=None):
-        self.data = data
-        self.authorization = authorization
-
-    @property
-    def data(self):
-        return self._data
-
-    @data.setter
-    def data(self, value):
-        if check_dht_value_type(value):
-            self._data = value
-        else:
-            raise TypeError("Value must be of type int, float, bool, str, or bytes")
-
-    @property
-    def authorization(self):
-        return self._authorization
-
-    @authorization.setter
-    def authorization(self, authorization):
-        assert type(authorization) is Authorization or \
-               authorization is None
-        self._authorization = authorization
-
-    @classmethod
-    def of_auth(cls, data, auth):
-        assert type(auth) is Authorization
-        return cls(data, auth)
-
-    @classmethod
-    def of_data(cls, data):
-        return cls(data)
-
-    @staticmethod
-    def of_json(dct):
-        assert 'authorization' in dct
-        assert 'data' in dct
-
-        if dct['authorization'] is None:
-            return Value.of_data(dct['data'])
-        else:
-            return Value.of_auth(dct['data'], Authorization.of_json(dct['authorization']))
-
-    @staticmethod
-    def get_signed(dkey, data, time=None, priv_key_path='key.pem', pub_key_path='public.pem'):
-        import base64
-        from kademlia.utils import digest
-
-        dval = digest(str(dkey) + str(data) + str(time))
-
-        signature = str(base64.encodebytes(Crypto.get_signature(dval, open(priv_key_path).read().encode('ascii'))))[1:]
-
-        pub_key = str(base64.b64encode(open(pub_key_path).read().encode('ascii')))[1:]
-        return Value.of_auth(data,
-                             Authorization(PublicKey(pub_key, time),
-                                           signature.replace('\\n', '')))
+        return json_dict
 
 
 class PublicKey(JsonSerializable):
@@ -142,14 +87,67 @@ class Authorization(JsonSerializable):
         return Authorization(PublicKey.of_json(dct['pub_key']), dct['sign'])
 
 
+class Value(JsonSerializable):
+
+    def __init__(self, data, authorization: Authorization):
+        assert type(authorization) is Authorization
+
+        self.authorization = authorization
+        self.data = data
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, value):
+        if check_dht_value_type(value):
+            self._data = value
+        else:
+            raise TypeError("Value must be of type int, float, bool, str, or bytes")
+
+    @property
+    def authorization(self):
+        return self._authorization
+
+    @authorization.setter
+    def authorization(self, authorization):
+        assert type(authorization) is Authorization or \
+               authorization is None
+        self._authorization = authorization
+
+    @staticmethod
+    def of_json(dct):
+        assert 'authorization' in dct
+        assert 'data' in dct
+
+        if dct['authorization'] is None:
+            raise InvalidValueFormatException('Invalid value format, value should contain authorization')
+        else:
+            return Value(dct['data'], Authorization.of_json(dct['authorization']))
+
+    @staticmethod
+    def get_signed(dkey, data, time=None, priv_key_path=Config.PRIVATE_KEY_PATH, pub_key_path=Config.PUBLIC_KEY_PATH):
+        import base64
+        from kademlia.utils import digest
+
+        log.debug(f"Going to sign {data} with key: [{dkey.hex()}]")
+        dval = digest(str(dkey) + str(data) + str(time))
+        signature = str(base64.encodebytes(Crypto.get_signature(dval, open(priv_key_path).read().encode('ascii'))))[1:]
+        pub_key = str(base64.b64encode(open(pub_key_path).read().encode('ascii')))[1:]
+        log.debug(f"Successfully signed data with key: [{dkey.hex()}]")
+
+        return Value(data, Authorization(PublicKey(pub_key, time), signature.replace('\\n', '')))
+
+
 def check_dht_value_type(value):
     """
     Checks to see if the type of the value is a valid type for
     placing in the dht.
     """
     typeset = {int, float, bool, str, bytes}
-    return type(value) in typeset
+    return type(value) in typeset or value is None
 
 
 def check_pkey_type(base64_pub_key):
-    assert type(base64_pub_key) is str or base64_pub_key is None
+    assert type(base64_pub_key) is str

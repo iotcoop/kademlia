@@ -1,13 +1,10 @@
 import logging
 import asyncio
-import json
 import sys
-import ast
 
 from aiohttp import web
 
-from kademlia.dto.dto import Value
-from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException
+from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException, InvalidValueFormatException
 from kademlia.network import Server
 from kademlia.storage import DiskStorage
 
@@ -29,12 +26,13 @@ async def set_key(request):
     key = request.match_info.get('key')
     try:
         data = await request.json()
-        value = Value.of_json(data)
-        resp = await server.set_auth(key, value)
-    except InvalidSignException as ex:
+        resp = await server.set(key, data)
+    except InvalidSignException:
         raise web.HTTPBadRequest
     except UnauthorizedOperationException:
         raise web.HTTPUnauthorized
+    except InvalidValueFormatException:
+        raise web.HTTPBadRequest
 
     return web.json_response(resp)
 
