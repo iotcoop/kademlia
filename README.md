@@ -1,6 +1,6 @@
-# Python Distributed Hash Table
-[![Build Status](https://secure.travis-ci.org/bmuller/kademlia.png?branch=master)](https://travis-ci.org/bmuller/kademlia)
-[![Docs Status](https://readthedocs.org/projects/kademlia/badge/?version=latest)](http://kademlia.readthedocs.org)
+# Python Distributed Hash Table  &emsp; ![Build Status]
+
+[Build Status]: http://18.224.44.167:8080/buildStatus/icon?job=DHT
 
 **Documentation can be found at [kademlia.readthedocs.org](http://kademlia.readthedocs.org/).**
 
