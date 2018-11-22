@@ -41,8 +41,8 @@ class KBucketTest(unittest.TestCase):
 
 class RoutingTableTest(unittest.TestCase):
     def setUp(self):
-        self.id = mknode().id
-        self.protocol = FakeProtocol(self.id)
+        self.node_id = mknode().id
+        self.protocol = FakeProtocol(self.node_id)
         self.router = self.protocol.router
 
     def test_addContact(self):
@@ -53,8 +53,8 @@ class RoutingTableTest(unittest.TestCase):
 
 class TableTraverserTest(unittest.TestCase):
     def setUp(self):
-        self.id = mknode().id
-        self.protocol = FakeProtocol(self.id)
+        self.node_id = mknode().id
+        self.protocol = FakeProtocol(self.node_id)
         self.router = self.protocol.router
 
     def test_iteration(self):
