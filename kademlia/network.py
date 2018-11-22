@@ -163,19 +163,12 @@ class Server(object):
 
         return Value.get_signed(dkey, select_most_common_response(responses)).to_dict()
 
-    async def set(self, key, value):
+    async def set_controlled(self, key, values: list):
         """
-        Set the given string key to the given value in the network.
+        Set the given string key to the given controlled value in the network.
         """
 
         log.info(f"Going to set {key} = {value} on network")
-
-        if isinstance(value, list):
-            return await self.__set_controlled(key, [Value.of_json(elem) for elem in value])
-        else:
-            return await self.__set_secure(key, Value.of_json(value))
-
-    async def __set_controlled(self, key, values: list):
 
         dkey = digest(key)
 
@@ -187,10 +180,12 @@ class Server(object):
 
         return await self.__set_digest(dkey, json.dumps([value.to_dict() for value in values]))
 
-    async def __set_secure(self, key, value: Value):
+    async def set_secure(self, key, value: Value):
         """
-        Set the given string key to the given value in the network.
+        Set the given string key to the given secure value in the network.
         """
+
+        log.info(f"Going to set {key} = {value} on network")
 
         dkey = digest(key)
 
