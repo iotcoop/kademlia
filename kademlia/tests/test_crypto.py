@@ -58,17 +58,21 @@ class PublicKeyTests(unittest.TestCase):
         public_key = PublicKey('test key', 123)
         self.assertEqual(public_key.exp_time, 123)
 
-    def test_key_set(self):
+    def test_createKey_validFormat_ok(self):
         """
         key.set should check type and set key
         """
         public_key = PublicKey('test key')
         public_key.key = 'another key'
         self.assertEqual(public_key.key, 'another key')
-        public_key.key = None
-        self.assertEqual(public_key.key, None)
-        with self.assertRaises(AssertionError):
-           public_key.key = 123
+
+    def test_createKey_invalidFormat_errorRaises(self):
+        """
+        key.set should check type and raise exception in case of invalid format
+        """
+
+        self.assertRaises(AssertionError, lambda: PublicKey(None))
+        self.assertRaises(AssertionError, lambda: PublicKey(123))
 
     def test_of_json(self):
         """
@@ -81,5 +85,4 @@ class PublicKeyTests(unittest.TestCase):
         public_key = PublicKey.of_json(json)
         self.assertEqual(public_key.key, 'test key')
         self.assertEqual(public_key.exp_time, 123)
-        with self.assertRaises(AssertionError):
-            public_key = PublicKey.of_json(json2)
+        self.assertRaises(AssertionError, lambda: PublicKey.of_json(json2))
