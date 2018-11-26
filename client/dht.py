@@ -21,7 +21,7 @@ async def read_key(request):
     return web.json_response(resp)
 
 
-async def set_secured_key(request):
+async def set_secured_value(request):
     global server
 
     key = request.match_info.get('key')
@@ -38,7 +38,7 @@ async def set_secured_key(request):
     return web.json_response(resp)
 
 
-async def set_controlled_key(request):
+async def set_controlled_value(request):
     global server
 
     key = request.match_info.get('key')
@@ -75,12 +75,12 @@ if __name__ == '__main__':
     log.setLevel(logging.DEBUG)
 
     if sys.argv[1] != "127.0.0.1":
-        bootstrap_node = (sys.argv[1], KADEMLIA_PORT - 1)
+        bootstrap_node = (sys.argv[1], KADEMLIA_PORT)
         loop.run_until_complete(server.bootstrap([bootstrap_node]))
 
     app = web.Application()
     app.add_routes([web.get('/dht/{key}', read_key)])
-    app.add_routes([web.post('/dht/controlled/{key}', set_controlled_key)])
-    app.add_routes([web.post('/dht/secured/{key}', set_secured_key)])
+    app.add_routes([web.post('/dht/controlled/{key}', set_controlled_value)])
+    app.add_routes([web.post('/dht/secured/{key}', set_secured_value)])
 
     web.run_app(app, port=API_PORT)
