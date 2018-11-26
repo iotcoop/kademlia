@@ -98,7 +98,7 @@ class Server(object):
 
         # now republish keys older than one hour
         for dkey, value in self.storage.iteritemsOlderThan(3600):
-            await self.__set_digest(dkey, value)
+            await self.set_digest(dkey, value)
 
     def bootstrappableNeighbors(self):
         """
@@ -178,7 +178,7 @@ class Server(object):
 
         log.debug(f"Going to retrieve stored value for key: {dkey}")
 
-        return await self.__set_digest(dkey, json.dumps([value.to_dict() for value in values]))
+        return await self.set_digest(dkey, json.dumps([value.to_dict() for value in values]))
 
     async def set_secure(self, key, value: Value):
         """
@@ -200,9 +200,9 @@ class Server(object):
             stored_value = Value.of_json(stored_value_json)
             check_new_value_valid(dkey, stored_value, value)
 
-        return await self.__set_digest(dkey, json.dumps(value.to_dict()))
+        return await self.set_digest(dkey, json.dumps(value.to_dict()))
 
-    async def __set_digest(self, dkey, value):
+    async def set_digest(self, dkey, value):
         """
         Set the given SHA1 digest key (bytes) to the given value in the
         network.
