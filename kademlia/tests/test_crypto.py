@@ -25,7 +25,7 @@ class CryptoTests(unittest.TestCase):
         signature_1 = self.crypto.get_signature(value_1, 'private key')
         self.assertEqual(signature_1, 'test signature')
         serialization.load_pem_private_key.assert_called_with('private key', password=None, backend=default_backend())
-        mocked_pk.sign.assert_called_with(b'47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def', ANY, ANY)
+        mocked_pk.sign.assert_called_with(value_1, ANY, ANY)
         self.crypto.get_signature(value_1, 'private key', 'password')
         serialization.load_pem_private_key.assert_called_with('private key', password='password', backend=default_backend())
 
@@ -43,7 +43,7 @@ class CryptoTests(unittest.TestCase):
 
         self.crypto.check_signature(value, signature, public_key)
         serialization.load_pem_public_key.assert_called_with(b'test key', backend=default_backend())
-        mocked_pk.verify.assert_called_with(b'test signature', b'47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def', ANY, ANY)
+        mocked_pk.verify.assert_called_with(b'test signature', value, ANY, ANY)
 
 
 class PublicKeyTests(unittest.TestCase):
