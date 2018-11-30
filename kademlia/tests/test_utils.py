@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 import time
 
 from kademlia.crypto import Crypto
+from kademlia.dto.dto import PersistMode
 from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException
 from kademlia.utils import digest, sharedPrefix, OrderedSet, validate_authorization, check_new_value_valid
 
@@ -38,6 +39,7 @@ class UtilsTest(unittest.TestCase):
         value.authorization.sign = 'sign'
         value.authorization.pub_key.exp_time = None
         value.authorization.pub_key.key = 'key'
+        value.persist_mode = PersistMode.SECURED
         mocked_digest.return_value = 'digest'
         validate_authorization(hashlib.sha1('key'.encode('utf8')).digest(), value)
         Crypto.check_signature.assert_called_with('digest', 'sign', 'key')

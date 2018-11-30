@@ -20,13 +20,13 @@ class CryptoTests(unittest.TestCase):
         mocked_pk.sign = Mock(return_value='test signature')
         serialization.load_pem_private_key = Mock(return_value=mocked_pk)
 
-        value = 'test value'.encode('utf8')
+        value_1 = 'test value'.encode('utf8')
 
-        signature = self.crypto.get_signature(value, 'private key')
-        self.assertEqual(signature, 'test signature')
+        signature_1 = self.crypto.get_signature(value_1, 'private key')
+        self.assertEqual(signature_1, 'test signature')
         serialization.load_pem_private_key.assert_called_with('private key', password=None, backend=default_backend())
         mocked_pk.sign.assert_called_with(b'47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def', ANY, ANY)
-        self.crypto.get_signature(value, 'private key', 'password')
+        self.crypto.get_signature(value_1, 'private key', 'password')
         serialization.load_pem_private_key.assert_called_with('private key', password='password', backend=default_backend())
 
     def test_check_signature(self):

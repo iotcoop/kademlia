@@ -19,7 +19,7 @@ class SwappableProtocolTests(unittest.TestCase):
         """
         server = Server()
         self.assertIsNone(server.protocol)
-        server.listen(8469)
+        server.listen(8421)
         self.assertIsInstance(server.protocol, KademliaProtocol)
         server.stop()
 
@@ -39,13 +39,13 @@ class SwappableProtocolTests(unittest.TestCase):
 
         # An ordinary server does NOT have a CoconutProtocol as its protocol...
         server = Server()
-        server.listen(8469)
+        server.listen(8421)
         self.assertNotIsInstance(server.protocol, CoconutProtocol)
         server.stop()
 
         # ...but our custom server does.
         husk_server = HuskServer()
-        husk_server.listen(8469)
+        husk_server.listen(8421)
         self.assertIsInstance(husk_server.protocol, CoconutProtocol)
         husk_server.stop()
 

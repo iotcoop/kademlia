@@ -6,10 +6,11 @@ import logging
 from rpcudp.protocol import RPCProtocol
 
 from kademlia.config import Config
-from kademlia.utils import digest, validate_authorization, check_new_value_valid, select_most_common_response
+from kademlia.utils import digest, validate_authorization, check_new_value_valid, select_most_common_response, \
+    validate_secure_value, validate_controlled_value
 from kademlia.crawling import ValueSpiderCrawl
-from kademlia.dto.dto import Value
-from kademlia.exceptions import UnauthorizedOperationException, InvalidSignException
+from kademlia.dto.dto import Value, PersistMode
+from kademlia.exceptions import UnauthorizedOperationException, InvalidSignException, InvalidValueFormatException
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
 
@@ -49,21 +50,50 @@ class KademliaProtocol(RPCProtocol):
                   sender, key.hex(), value)
 
         try:
-            des_value = Value.of_json(json.loads(value))
-            if des_value.authorization is not None:
-                validate_authorization(key, des_value)
-
-            log.debug(f"Received value for key {key.hex()} is valid,"
-                      f" going to retrieve values stored under key : {key.hex}")
-            stored_value_json = await self.__get_most_common(key)
-            if stored_value_json:
-                stored_value = Value.of_json(json.loads(stored_value_json))
-                check_new_value_valid(key, stored_value, des_value)
-
+            value_json = json.loads(value)
             source = Node(nodeid, sender[0], sender[1])
             self.welcomeIfNewNode(source)
+            log.debug(f"Received value for key {key.hex()} is valid,"
+                      f" going to retrieve values stored under key : {key.hex()}")
+            stored_value_json = await self.__get_most_common(key)
 
-            self.storage[key] = value
+            if isinstance(value_json, list):
+                for val in value_json:
+                    val = Value.of_json(val)
+                    assert val.persist_mode == PersistMode.CONTROLLED
+                    validate_authorization(key, val)
+
+                if stored_value_json:
+                    stored_value = json.loads(stored_value_json)
+                    if isinstance(stored_value, list):
+                        #TODO: Need timestamp
+                        sv_dict = {val['authorization']['pub_key']['key']: Value.of_json(val) for val in stored_value}
+                        nv_dict = {val['authorization']['pub_key']['key']: Value.of_json(val) for val in value_json}
+                        sv_dict.update(nv_dict)
+                        result = [val.to_dict() for val in sv_dict.values()]
+                    else:
+                        raise UnauthorizedOperationException()
+            else:
+                des_value = Value.of_json(value_json)
+                validate_authorization(key, des_value)
+
+                if stored_value_json:
+                    stored_value = json.loads(stored_value_json)
+                    if isinstance(stored_value, list):
+                        validate_controlled_value(key, des_value, stored_value)
+                        cv_dict = {val['authorization']['pub_key']['key']: Value.of_json(val) for val in stored_value}
+                        cv_dict.update({des_value.authorization.pub_key.key: des_value})
+                        result = [val.to_dict() for val in cv_dict.values()]
+                    else:
+                        validate_secure_value(key, des_value, stored_value)
+                        result = des_value.to_dict()
+                else:
+                    if des_value.persist_mode == PersistMode.SECURED:
+                        result = des_value.to_dict()
+                    else:
+                        result = [des_value.to_dict()]
+
+            self.storage[key] = json.dumps(result)
 
         except AssertionError:
             log.exception("Unable to store value, got value with unsupported format: %s", value)
@@ -74,7 +104,21 @@ class KademliaProtocol(RPCProtocol):
         except InvalidSignException:
             log.exception("Signature is not valid")
 
+        except InvalidValueFormatException:
+            log.exception("Invalid value format, value should contain authorization")
+
         return True
+
+    async def _handle_secured_value_store(self, json_parsed_value, key):
+        des_value = Value.of_json(json_parsed_value)
+        if des_value.authorization is not None:
+            validate_authorization(key, des_value)
+        log.debug(f"Received value for key {key.hex()} is valid,"
+                  f" going to retrieve values stored under key : {key.hex}")
+        stored_value_json = await self.__get_most_common(key)
+        if stored_value_json:
+            stored_value = Value.of_json(json.loads(stored_value_json))
+            check_new_value_valid(key, stored_value, des_value)
 
     def rpc_find_node(self, sender, nodeid, key):
         log.info("finding neighbors of %i in local table",

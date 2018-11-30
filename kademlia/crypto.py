@@ -19,10 +19,8 @@ class Crypto(object):
         privkey = serialization.load_pem_private_key(
             priv_key, password=password, backend=default_backend())
 
-        prehashed = bytes(hashlib.sha256(value).hexdigest(), 'ascii')
-
         sig = privkey.sign(
-            prehashed,
+            value,
             padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
                 salt_length=padding.PSS.MAX_LENGTH),
@@ -31,18 +29,16 @@ class Crypto(object):
         return sig
 
     @staticmethod
-    def check_signature(value, signature, pub_key):
+    def check_signature(dvalue, signature, pub_key):
 
         decoded_key = base64.b64decode(pub_key)
         serialized_key = serialization.load_pem_public_key(decoded_key, backend=default_backend())
         decoded_sig = base64.b64decode(signature)
 
-        prehashed_val = bytes(hashlib.sha256(value).hexdigest(), 'ascii')
-
         try:
             serialized_key.verify(
                 decoded_sig,
-                prehashed_val,
+                dvalue,
                 padding.PSS(
                     mgf=padding.MGF1(hashes.SHA256()),
                     salt_length=padding.PSS.MAX_LENGTH),

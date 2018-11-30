@@ -92,8 +92,9 @@ class ValueSpiderCrawl(SpiderCrawl):
             response = RPCFindResponse(response)
             if not response.happened():
                 toremove.append(peerid)
-            elif response.hasValue() and response.signValid(self.node.id):
-                found_values.append(response.getValue())
+            elif response.hasValue():
+                if response.signValid(self.node.id):
+                    found_values.append(response.getValue())
             else:
                 peer = self.nearest.getNodeById(peerid)
                 self.nearestWithoutValue.push(peer)
@@ -157,7 +158,9 @@ class RPCFindResponse(object):
 
         response = Value.of_json(self.response[1])
 
-        dval = digest(str(node_id) + str(response.data) + str(response.authorization.pub_key.exp_time))
+        dval = digest(node_id.hex() + str(response.data) + str(response.authorization.pub_key.exp_time)
+                      + str(response.persist_mode))
+
         return Crypto.check_signature(dval, response.authorization.sign, response.authorization.pub_key.key)
 
     def getValue(self):

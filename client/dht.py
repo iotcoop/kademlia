@@ -21,13 +21,13 @@ async def read_key(request):
     return web.json_response(resp)
 
 
-async def set_secured_value(request):
+async def set_value(request):
     global server
 
     key = request.match_info.get('key')
     try:
         data = await request.json()
-        resp = await server.set_secure(key, Value.of_json(data))
+        resp = await server.set(key, Value.of_json(data))
     except InvalidSignException:
         raise web.HTTPBadRequest
     except UnauthorizedOperationException:
@@ -37,22 +37,6 @@ async def set_secured_value(request):
 
     return web.json_response(resp)
 
-
-async def set_controlled_value(request):
-    global server
-
-    key = request.match_info.get('key')
-    try:
-        data = await request.json()
-        resp = await server.set_controlled(key, [Value.of_json(elem) for elem in data])
-    except InvalidSignException:
-        raise web.HTTPBadRequest
-    except UnauthorizedOperationException:
-        raise web.HTTPUnauthorized
-    except InvalidValueFormatException:
-        raise web.HTTPBadRequest
-
-    return web.json_response(resp)
 
 if __name__ == '__main__':
     KADEMLIA_PORT = int(sys.argv[2])
@@ -80,7 +64,6 @@ if __name__ == '__main__':
 
     app = web.Application()
     app.add_routes([web.get('/dht/{key}', read_key)])
-    app.add_routes([web.post('/dht/controlled/{key}', set_controlled_value)])
-    app.add_routes([web.post('/dht/secured/{key}', set_secured_value)])
+    app.add_routes([web.post('/dht/{key}', set_value)])
 
     web.run_app(app, port=API_PORT)
