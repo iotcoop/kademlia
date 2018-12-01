@@ -7,7 +7,7 @@ import pickle
 import asyncio
 import logging
 
-from kademlia.dto.dto import Value, PersistMode
+from kademlia.domain.domain import Value, PersistMode
 from kademlia.protocol import KademliaProtocol
 from kademlia.utils import digest, validate_authorization, select_most_common_response, validate_controlled_value,\
     validate_secure_value

@@ -4,7 +4,7 @@ import sys
 
 from aiohttp import web
 
-from kademlia.dto.dto import Value
+from kademlia.domain.domain import Value
 from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException, InvalidValueFormatException
 from kademlia.network import Server
 from kademlia.storage import DiskStorage

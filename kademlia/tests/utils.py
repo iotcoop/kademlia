@@ -5,7 +5,7 @@ import random
 import hashlib
 from struct import pack
 
-from kademlia.dto.dto import Value
+from kademlia.domain.domain import Value
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
 

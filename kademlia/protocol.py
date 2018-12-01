@@ -9,7 +9,7 @@ from kademlia.config import Config
 from kademlia.utils import digest, validate_authorization, check_new_value_valid, select_most_common_response, \
     validate_secure_value, validate_controlled_value
 from kademlia.crawling import ValueSpiderCrawl
-from kademlia.dto.dto import Value, PersistMode
+from kademlia.domain.domain import Value, PersistMode
 from kademlia.exceptions import UnauthorizedOperationException, InvalidSignException, InvalidValueFormatException
 from kademlia.node import Node
 from kademlia.routing import RoutingTable

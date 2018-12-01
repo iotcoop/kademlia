@@ -1,7 +1,7 @@
 import logging
 
 from kademlia.config import Config
-from kademlia.dto.dto import Value
+from kademlia.domain.domain import Value
 from kademlia.node import Node, NodeHeap
 from kademlia.utils import gather_dict, digest
 

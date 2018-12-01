@@ -8,7 +8,7 @@ import asyncio
 import time
 
 from kademlia.crypto import Crypto
-from kademlia.dto.dto import Value, PersistMode
+from kademlia.domain.domain import Value, PersistMode
 from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException
 
 log = logging.getLogger(__name__)

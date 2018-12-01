@@ -1,6 +1,5 @@
 import logging
 
-import hashlib
 import base64
 
 from cryptography.exceptions import InvalidSignature

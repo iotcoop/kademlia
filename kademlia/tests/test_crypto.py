@@ -4,7 +4,7 @@ from cryptography.hazmat.backends import default_backend
 from unittest.mock import Mock, ANY
 
 from kademlia.crypto import Crypto
-from kademlia.dto.dto import PublicKey
+from kademlia.domain.domain import PublicKey
 
 
 class CryptoTests(unittest.TestCase):

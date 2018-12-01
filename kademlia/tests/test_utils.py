@@ -1,10 +1,9 @@
 import hashlib
 import unittest
 from unittest.mock import Mock, patch
-import time
 
 from kademlia.crypto import Crypto
-from kademlia.dto.dto import PersistMode
+from kademlia.domain.domain import PersistMode
 from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException
 from kademlia.utils import digest, sharedPrefix, OrderedSet, validate_authorization, check_new_value_valid
 

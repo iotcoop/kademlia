@@ -76,7 +76,7 @@ class ServerTests(unittest.TestCase):
             server.get = Mock(return_value=async_return(get_signed_value(dkey, None).to_dict()))
             server.set_digest = Mock(return_value=async_return(True))
 
-            await server.set_secure('test key', value)
+            await server.set('test key', value)
 
             server.get.assert_called_with('test key')
 

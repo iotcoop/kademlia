@@ -168,7 +168,8 @@ class Value(JsonSerializable):
             pub_key = str(base64.b64encode(pub_key.read().encode('ascii')))[1:]
         log.debug(f"Successfully signed data with key: [{dkey.hex()}]")
 
-        return Value(data, str(persist_mode), Authorization(PublicKey(pub_key, time), signature.replace('\\n', '')))
+        return Value(data, str(persist_mode),
+                     Authorization(PublicKey(pub_key[1:-1], time), signature.replace('\\n', '')[1:-1]))
 
 
 def check_value_json(dct: dict):
