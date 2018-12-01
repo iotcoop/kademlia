@@ -1,4 +1,4 @@
-FROM openjdk:8
+FROM eqitii/eqitii-fingerprinter-py:0.1.0
 
 RUN apt-get update && apt-get upgrade -y
 RUN apt-get install -y python python-pip software-properties-common
