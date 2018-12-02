@@ -1,4 +1,4 @@
-FROM eqitii/eqitii-kademlia:0.1.2
+FROM eqitii/eqitii-kademlia:0.1.3
 
 RUN apk add openssl
 
