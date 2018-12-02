@@ -1,7 +1,6 @@
 FROM python:3.7.0-alpine3.7
 
 RUN apk add g++ make libffi-dev automake gmp autoconf pkgconfig libtool libressl-dev
-RUN pip3 install secp256k1
 COPY kademlia /app/kademlia
 COPY setup.py /app
 WORKDIR /app
