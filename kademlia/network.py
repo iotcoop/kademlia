@@ -150,7 +150,7 @@ class Server(object):
         nearest = self.protocol.router.findNeighbors(node)
         if len(nearest) == 0:
             log.warning("There are no known neighbors to get key %s", key)
-            return None
+            return Value.get_signed(dkey, None).to_dict()
         spider = ValueSpiderCrawl(self.protocol, node, nearest,
                                   self.ksize, self.alpha)
 
