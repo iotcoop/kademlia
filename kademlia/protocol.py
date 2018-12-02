@@ -73,6 +73,8 @@ class KademliaProtocol(RPCProtocol):
                         result = [val.to_dict() for val in sv_dict.values()]
                     else:
                         raise UnauthorizedOperationException()
+                else:
+                    result = value
             else:
                 des_value = Value.of_json(value_json)
                 validate_authorization(key, des_value)
