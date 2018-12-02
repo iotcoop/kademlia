@@ -19,8 +19,9 @@ if [ "$DEV" = true ] ; then
     apk add curl
 fi
 
-
-openssl genrsa -out key.pem 2048
-openssl rsa -in key.pem -out public.pem -outform PEM -pubout
+python3 -m secp256k1 privkey -p  > keys
+sed -n '2 p' keys | cut -d ' ' -f 3 | tr -d '\n' > public.der
+sed -n '1 p' keys | tr -d '\n' > key.der
+rm keys
 
 exec python /app/dht.py $CONNECT_IP $KADEMLIA_PORT $API_PORT
