@@ -30,8 +30,8 @@ class JsonSerializable(object):
 
 class PublicKey(JsonSerializable):
 
-    def __init__(self, base64_pub_key, exp_time=None):
-        self.key = base64_pub_key
+    def __init__(self, hex_pub_key, exp_time=None):
+        self.key = hex_pub_key
         self.exp_time = exp_time
 
     @property
@@ -152,24 +152,22 @@ class Value(JsonSerializable):
         dct = json.loads(string)
         return Value.of_json(dct)
 
-
     @staticmethod
     def get_signed(dkey, data, persist_mode=PersistMode.SECURED, time=None, priv_key_path=Config.PRIVATE_KEY_PATH,
                    pub_key_path=Config.PUBLIC_KEY_PATH):
-        import base64
         from kademlia.utils import digest
 
         log.debug(f"Going to sign {data} with key: [{dkey.hex()}]")
 
         dval = digest(dkey.hex() + str(data) + str(time) + str(persist_mode))
         with open(priv_key_path) as priv_key:
-            signature = str(base64.encodebytes(Crypto.get_signature(dval, priv_key.read().encode('ascii'))))[1:]
+            signature = Crypto.get_signature(dval, priv_key.read()).hex()
         with open(pub_key_path) as pub_key:
-            pub_key = str(base64.b64encode(pub_key.read().encode('ascii')))[1:]
+            pub_key = pub_key.read()
         log.debug(f"Successfully signed data with key: [{dkey.hex()}]")
 
         return Value(data, str(persist_mode),
-                     Authorization(PublicKey(pub_key[1:-1], time), signature.replace('\\n', '')[1:-1]))
+                     Authorization(PublicKey(pub_key, time), signature))
 
 
 def check_value_json(dct: dict):
@@ -185,5 +183,5 @@ def check_value_json(dct: dict):
         raise InvalidValueFormatException('Invalid value format, persist_mode MUST be set to "SECURED" or "CONTROLLED"')
 
 
-def check_pkey_type(base64_pub_key):
-    assert type(base64_pub_key) is str
+def check_pkey_type(hex_pub_key):
+    assert type(hex_pub_key) is str

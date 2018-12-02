@@ -1,11 +1,6 @@
 import logging
 
-import base64
-
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.backends import default_backend
+from secp256k1 import PrivateKey, PublicKey
 
 log = logging.getLogger(__name__)
 
@@ -13,35 +8,18 @@ log = logging.getLogger(__name__)
 class Crypto(object):
 
     @staticmethod
-    def get_signature(value, priv_key, password=None):
+    def get_signature(message: bytes, priv_key: str):
+        priv_key = PrivateKey(priv_key, raw=False)
 
-        privkey = serialization.load_pem_private_key(
-            priv_key, password=password, backend=default_backend())
-
-        sig = privkey.sign(
-            value,
-            padding.PSS(
-                mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.PSS.MAX_LENGTH),
-            hashes.SHA256())
-
-        return sig
+        sig = priv_key.ecdsa_sign(message)
+        return priv_key.ecdsa_serialize(sig)
 
     @staticmethod
-    def check_signature(dvalue, signature, pub_key):
+    def check_signature(message: bytes, signature: str, pub_key: str):
+        privkey = PrivateKey()
+        pub_key = PublicKey(bytes(bytearray.fromhex(pub_key)), raw=True)
 
-        decoded_key = base64.b64decode(pub_key)
-        serialized_key = serialization.load_pem_public_key(decoded_key, backend=default_backend())
-        decoded_sig = base64.b64decode(signature)
+        sig = privkey.ecdsa_deserialize(bytes(bytearray.fromhex(signature)))
 
-        try:
-            serialized_key.verify(
-                decoded_sig,
-                dvalue,
-                padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.MAX_LENGTH),
-                hashes.SHA256())
-            return True
-        except InvalidSignature:
-            return False
+        return pub_key.ecdsa_verify(message, sig)
+
