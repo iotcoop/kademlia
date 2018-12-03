@@ -39,8 +39,9 @@ async def set_value(request):
 
 
 if __name__ == '__main__':
-    KADEMLIA_PORT = int(sys.argv[2])
-    API_PORT = int(sys.argv[3])
+    KADEMLIA_PORT = int(sys.argv[3])
+    CONNECT_PORT = int(sys.argv[2])
+    API_PORT = int(sys.argv[4])
     KEY_ABSENT_MESSAGE = 'No such key'
     NO_KEYS = 'No keys'
 
@@ -59,7 +60,7 @@ if __name__ == '__main__':
     log.setLevel(logging.DEBUG)
 
     if sys.argv[1] != "127.0.0.1":
-        bootstrap_node = (sys.argv[1], KADEMLIA_PORT)
+        bootstrap_node = (sys.argv[1], CONNECT_PORT)
         loop.run_until_complete(server.bootstrap([bootstrap_node]))
 
     app = web.Application()
