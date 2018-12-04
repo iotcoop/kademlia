@@ -1,13 +1,11 @@
 import logging
 import asyncio
-import json
 import sys
-import ast
 
 from aiohttp import web
 
-from kademlia.dto.dto import Value
-from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException
+from kademlia.domain.domain import Value
+from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException, InvalidValueFormatException
 from kademlia.network import Server
 from kademlia.storage import DiskStorage
 
@@ -23,60 +21,27 @@ async def read_key(request):
     return web.json_response(resp)
 
 
-async def set_key(request):
+async def set_value(request):
     global server
 
     key = request.match_info.get('key')
     try:
         data = await request.json()
-        value = Value.of_json(data)
-        resp = await server.set_auth(key, value)
-    except InvalidSignException as ex:
+        await server.set(key, Value.of_json(data))
+    except InvalidSignException:
         raise web.HTTPBadRequest
     except UnauthorizedOperationException:
         raise web.HTTPUnauthorized
+    except InvalidValueFormatException:
+        raise web.HTTPBadRequest
 
-    return web.json_response(resp)
+    return web.HTTPOk()
 
-
-async def read_all(request):
-    global server
-
-    try:
-        keys = await server.get('keys')
-        if not keys:
-            return web.Response(text=NO_KEYS)
-        result = {}
-        keys = ast.literal_eval(keys)
-        for key in keys:
-            value = await server.get(key)
-            result[key] = json.loads(value)
-        return web.Response(text=json.dumps(result))
-    except:
-        raise web.HTTPInternalServerError()
-
-
-async def read_all_list(request):
-    global server
-
-    try:
-        keys = await server.get('keys')
-        if not keys:
-            return web.Response(text=NO_KEYS)
-        result = []
-        keys = ast.literal_eval(keys)
-        for key in keys:
-            obj = {"key": key}
-            value = await server.get(key)
-            obj["value"] = json.loads(value)
-            result.append(obj)
-        return web.Response(text=json.dumps(result))
-    except:
-        raise web.HTTPInternalServerError()
 
 if __name__ == '__main__':
-    KADEMLIA_PORT = int(sys.argv[2])
-    API_PORT = int(sys.argv[3])
+    KADEMLIA_PORT = int(sys.argv[3])
+    CONNECT_PORT = int(sys.argv[2])
+    API_PORT = int(sys.argv[4])
     KEY_ABSENT_MESSAGE = 'No such key'
     NO_KEYS = 'No keys'
 
@@ -95,13 +60,11 @@ if __name__ == '__main__':
     log.setLevel(logging.DEBUG)
 
     if sys.argv[1] != "127.0.0.1":
-        bootstrap_node = (sys.argv[1], KADEMLIA_PORT)
+        bootstrap_node = (sys.argv[1], CONNECT_PORT)
         loop.run_until_complete(server.bootstrap([bootstrap_node]))
 
     app = web.Application()
-    app.add_routes([web.get('/dht/all', read_all)])
-    app.add_routes([web.get('/dht/all_list', read_all_list)])
     app.add_routes([web.get('/dht/{key}', read_key)])
-    app.add_routes([web.post('/dht/{key}', set_key)])
+    app.add_routes([web.post('/dht/{key}', set_value)])
 
     web.run_app(app, port=API_PORT)

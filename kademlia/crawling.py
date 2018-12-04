@@ -1,7 +1,7 @@
-from collections import Counter
 import logging
 
 from kademlia.config import Config
+from kademlia.domain.domain import Value
 from kademlia.node import Node, NodeHeap
 from kademlia.utils import gather_dict, digest
 
@@ -92,8 +92,9 @@ class ValueSpiderCrawl(SpiderCrawl):
             response = RPCFindResponse(response)
             if not response.happened():
                 toremove.append(peerid)
-            elif response.hasValue() and response.signValid(self.node.id):
-                found_values.append(response.getValue())
+            elif response.hasValue():
+                if response.signValid(self.node.id):
+                    found_values.append(response.getValue())
             else:
                 peer = self.nearest.getNodeById(peerid)
                 self.nearestWithoutValue.push(peer)
@@ -155,9 +156,12 @@ class RPCFindResponse(object):
     def signValid(self, node_id):
         from kademlia.crypto import Crypto
 
-        dval = digest(str(node_id) + str(self.response[1]['value']) + str(None))
-        return Crypto.check_signature(dval, self.response[1]['authorization']['sign'],
-                                      self.response[1]['authorization']['pub_key'])
+        response = Value.of_json(self.response[1])
+
+        dval = digest(node_id.hex() + str(response.data) + str(response.authorization.pub_key.exp_time)
+                      + str(response.persist_mode))
+
+        return Crypto.check_signature(dval, response.authorization.sign, response.authorization.pub_key.key)
 
     def getValue(self):
         return self.response[1]

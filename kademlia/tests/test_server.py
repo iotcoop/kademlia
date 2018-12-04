@@ -1,8 +1,10 @@
-import unittest
-from kademlia.dto.dto import Value
 import json
-from kademlia.utils import validate_authorization, check_new_value_valid
-from unittest.mock import Mock, patch
+import unittest
+
+from kademlia.domain.domain import PersistMode
+from kademlia.tests.utils import get_signed_value_with_keys
+from kademlia.utils import digest
+from unittest.mock import Mock
 import asyncio
 
 from kademlia.network import Server
@@ -19,7 +21,7 @@ class SwappableProtocolTests(unittest.TestCase):
         """
         server = Server()
         self.assertIsNone(server.protocol)
-        server.listen(8469)
+        server.listen(8421)
         self.assertIsInstance(server.protocol, KademliaProtocol)
         server.stop()
 
@@ -39,29 +41,25 @@ class SwappableProtocolTests(unittest.TestCase):
 
         # An ordinary server does NOT have a CoconutProtocol as its protocol...
         server = Server()
-        server.listen(8469)
+        server.listen(8421)
         self.assertNotIsInstance(server.protocol, CoconutProtocol)
         server.stop()
 
         # ...but our custom server does.
         husk_server = HuskServer()
-        husk_server.listen(8469)
+        husk_server.listen(8421)
         self.assertIsInstance(husk_server.protocol, CoconutProtocol)
         husk_server.stop()
 
 
-
 class ServerTests(unittest.TestCase):
 
-    @patch('kademlia.network.check_new_value_valid')
-    @patch('kademlia.network.validate_authorization')
-    def test_set_auth(self, mocked_va, mocked_cnvv):
+    def test_setSecure_putNewValue_Ok(self):
         """
         set_auth should validate value, check authorization and save value to the network
         """
         event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(event_loop)
-
 
         async def run_test():
             server = Server()
@@ -71,24 +69,18 @@ class ServerTests(unittest.TestCase):
                 f.set_result(result)
                 return f
 
-            server.get = Mock(return_value=async_return(None))
-            server.set = Mock(return_value=async_return(True))
-            value = Mock()
-            value.authorization = None
-            await server.set_auth('test key', value)
+            get_signed_value = get_signed_value_with_keys(priv_key_path='kademlia/tests/resources/key.der',
+                                                          pub_key_path='kademlia/tests/resources/public.der')
+            key = 'test key'
+            dkey = digest(key)
+            data = json.dumps(get_signed_value(dkey, 'data', PersistMode.SECURED).to_dict())
+            value = get_signed_value(dkey, data, PersistMode.SECURED)
+            server.get = Mock(return_value=async_return(get_signed_value(dkey, data, PersistMode.SECURED).to_dict()))
+            server.set_digest = Mock(return_value=async_return(True))
+
+            await server.set('test key', value)
+
             server.get.assert_called_with('test key')
-
-            value.authorization = 'auth'
-            await server.set_auth('test key', value)
-            mocked_va.assert_called_with(b'\xb2\x95\x8d\x18Pbw"`\xc3\xfa\x82\xcce\x1e\x12mT\xb2h', value)
-
-            server.get = Mock(return_value=async_return('some value'))
-            json.loads = Mock(return_value='json')
-            Value.of_json = Mock(return_value='stored value')
-            await server.set_auth('test key', value)
-            json.loads.assert_called_with('some value')
-            Value.of_json.assert_called_with('json')
-            mocked_cnvv.assert_called_with(b'\xb2\x95\x8d\x18Pbw"`\xc3\xfa\x82\xcce\x1e\x12mT\xb2h', 'stored value', value)
 
             server.stop()
 

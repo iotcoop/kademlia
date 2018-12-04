@@ -7,10 +7,10 @@ import pickle
 import asyncio
 import logging
 
-from kademlia.crypto import Crypto
-from kademlia.dto.dto import Value, JsonSerializable
+from kademlia.domain.domain import Value, PersistMode
 from kademlia.protocol import KademliaProtocol
-from kademlia.utils import digest, validate_authorization, check_new_value_valid, get_most_common_response
+from kademlia.utils import digest, validate_authorization, select_most_common_response, validate_controlled_value,\
+    validate_secure_value
 from kademlia.storage import ForgetfulStorage
 from kademlia.node import Node
 from kademlia.crawling import ValueSpiderCrawl
@@ -99,7 +99,7 @@ class Server(object):
 
         # now republish keys older than one hour
         for dkey, value in self.storage.iteritemsOlderThan(3600):
-            await self.set_digest(dkey, value)
+            await self.set_digest(dkey, value, value)
 
     def bootstrappableNeighbors(self):
         """
@@ -150,51 +150,56 @@ class Server(object):
         nearest = self.protocol.router.findNeighbors(node)
         if len(nearest) == 0:
             log.warning("There are no known neighbors to get key %s", key)
-            return None
+            return Value.get_signed(dkey, None).to_dict()
         spider = ValueSpiderCrawl(self.protocol, node, nearest,
                                   self.ksize, self.alpha)
 
         local_value = self.storage.get(dkey, None)
 
         if local_value:
-            local_value = Crypto.signed_get_response(dkey, local_value)
+            local_value = Value.get_signed(dkey, local_value).to_dict()
             responses = await spider.find([local_value])
         else:
             responses = await spider.find()
 
-        return responses
+        most_common_response = select_most_common_response(responses)
 
-    async def set_auth(self, key, value: Value):
+        return Value.get_signed(dkey, most_common_response).to_dict()
+
+    async def set(self, key, new_value: Value):
         """
-        Set the given string key to the given value in the network.
+         Set the given string key to the given value in the network.
         """
-        log.debug("Going to process save request")
-        if value.authorization is not None:
-            validate_authorization(digest(key), value)
 
-        log.debug(f"Going to retrieve stored value for key: {digest(key)}")
-        stored_value_json = get_most_common_response(await self.get(key))
-        if stored_value_json:
-            stored_value_json = json.loads(stored_value_json)
-            stored_value = Value.of_json(stored_value_json)
-            check_new_value_valid(digest(key), stored_value, value)
+        log.info(f"Going to set {key} = {new_value} on network")
 
-        return await self.set(key, json.dumps(JsonSerializable.__to_dict__(value)))
-
-    async def set(self, key, value):
-        """
-        Set the given string key to the given value in the network.
-        """
-        if not check_dht_value_type(value):
-            raise TypeError(
-                "Value must be of type int, float, bool, str, or bytes"
-            )
-
-        log.info("setting '%s' = '%s' on network", key, value)
         dkey = digest(key)
-        return await self.set_digest(dkey, value)
 
-    async def set_digest(self, dkey, value):
+        log.debug("Going to process save request")
+        validate_authorization(dkey, new_value)
+
+        log.debug(f"Going to retrieve stored value for key: {dkey}")
+        value_response_json = await self.get(key)
+
+        if value_response_json['data']:
+            stored_value = json.loads(value_response_json['data'])
+            if isinstance(stored_value, list):
+                validate_controlled_value(dkey, new_value, stored_value)
+                cv_dict = {val['authorization']['pub_key']['key']: Value.of_json(val) for val in stored_value}
+                cv_dict.update({new_value.authorization.pub_key.key: new_value})
+                result = [val.to_dict() for val in cv_dict.values()]
+            else:
+                validate_secure_value(dkey, new_value, stored_value)
+                result = new_value.to_dict()
+        else:
+            if new_value.persist_mode == PersistMode.SECURED:
+                result = new_value.to_dict()
+            else:
+                result = [new_value.to_dict()]
+
+        return await self.set_digest(dkey, json.dumps(result), json.dumps(new_value.to_dict()))
+
+    async def set_digest(self, dkey, l_value, r_value):
         """
         Set the given SHA1 digest key (bytes) to the given value in the
         network.
@@ -215,8 +220,8 @@ class Server(object):
         # if this node is close too, then store here as well
         biggest = max([n.distanceTo(node) for n in nodes])
         if self.node.distanceTo(node) < biggest:
-            self.storage[dkey] = value
-        ds = [self.protocol.callStore(n, dkey, value) for n in nodes]
+            self.storage[dkey] = l_value
+        ds = [self.protocol.callStore(n, dkey, r_value) for n in nodes]
         # return true only if at least one store call succeeded
         return any(await asyncio.gather(*ds))
 

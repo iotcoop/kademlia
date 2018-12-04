@@ -1,6 +1,7 @@
-FROM eqitii/eqitii-kademlia:0.1.0
+FROM eqitii/eqitii-kademlia:0.1.5
 
 RUN apk add openssl
+RUN apk add sed
 
 COPY client /app
 WORKDIR /app
