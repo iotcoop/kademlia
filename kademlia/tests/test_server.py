@@ -1,5 +1,7 @@
+import json
 import unittest
 
+from kademlia.domain.domain import PersistMode
 from kademlia.tests.utils import get_signed_value_with_keys
 from kademlia.utils import digest
 from unittest.mock import Mock
@@ -67,13 +69,13 @@ class ServerTests(unittest.TestCase):
                 f.set_result(result)
                 return f
 
+            get_signed_value = get_signed_value_with_keys(priv_key_path='kademlia/tests/resources/key.der',
+                                                          pub_key_path='kademlia/tests/resources/public.der')
             key = 'test key'
-            data = 'test data'
             dkey = digest(key)
-            get_signed_value = get_signed_value_with_keys(priv_key_path='kademlia/tests/resources/key.pem',
-                                                          pub_key_path='kademlia/tests/resources/public.pem')
-            value = get_signed_value(dkey, data)
-            server.get = Mock(return_value=async_return(get_signed_value(dkey, None).to_dict()))
+            data = json.dumps(get_signed_value(dkey, 'data', PersistMode.SECURED).to_dict())
+            value = get_signed_value(dkey, data, PersistMode.SECURED)
+            server.get = Mock(return_value=async_return(get_signed_value(dkey, data, PersistMode.SECURED).to_dict()))
             server.set_digest = Mock(return_value=async_return(True))
 
             await server.set('test key', value)

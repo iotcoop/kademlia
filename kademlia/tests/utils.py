@@ -5,7 +5,7 @@ import random
 import hashlib
 from struct import pack
 
-from kademlia.domain.domain import Value
+from kademlia.domain.domain import Value, PersistMode
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
 
@@ -31,7 +31,7 @@ class FakeProtocol:
 
 def get_signed_value_with_keys(priv_key_path, pub_key_path):
 
-        def get_signed_value(dkey, value):
-            return Value.get_signed(dkey, value, None, priv_key_path, pub_key_path)
+        def get_signed_value(dkey, value, persist_mode):
+            return Value.get_signed(dkey, value, persist_mode, None, priv_key_path, pub_key_path)
 
         return get_signed_value

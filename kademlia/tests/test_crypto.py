@@ -1,10 +1,9 @@
 import unittest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
 from unittest.mock import Mock, ANY
 
 from kademlia.crypto import Crypto
-from kademlia.domain.domain import PublicKey
+from kademlia.domain.domain import PublicKey, PersistMode
+from kademlia.utils import digest
 
 
 class CryptoTests(unittest.TestCase):
@@ -16,34 +15,22 @@ class CryptoTests(unittest.TestCase):
         """
         get_signature should return signature for specified value and private key
         """
-        mocked_pk = Mock()
-        mocked_pk.sign = Mock(return_value='test signature')
-        serialization.load_pem_private_key = Mock(return_value=mocked_pk)
+        priv_key = 'b22c8ea30609663197550b010e7abf5a9726523e8ca7ffdfb6a102815d3c8e97'
+        tgs_sign = 'd83c0713135d774afda7df23e8c45d4456f0e7cfbea92824b8980d2d6934b16f5e7b665e95cfd7d7ec2eddcd9c5ca7e2c0e257df01817033bc0f2aab2ce7bab2'
+        value_1 = b'test value'
 
-        value_1 = 'test value'.encode('utf8')
-
-        signature_1 = self.crypto.get_signature(value_1, 'private key')
-        self.assertEqual(signature_1, 'test signature')
-        serialization.load_pem_private_key.assert_called_with('private key', password=None, backend=default_backend())
-        mocked_pk.sign.assert_called_with(value_1, ANY, ANY)
-        self.crypto.get_signature(value_1, 'private key', 'password')
-        serialization.load_pem_private_key.assert_called_with('private key', password='password', backend=default_backend())
+        signature_1 = self.crypto.get_signature(value_1, priv_key).hex()
+        self.assertEqual(signature_1, tgs_sign)
 
     def test_check_signature(self):
         """
         check_signature should validate signature
         """
-        mocked_pk = Mock()
-        mocked_pk.verify = Mock()
-        serialization.load_pem_public_key = Mock(return_value=mocked_pk)
+        public_key = '0224d2079e86e937224f08aa37a857ca6116546868edde549d0bd6b8536af9d554'
+        tcs_sig = '749625f8d70efae75ffd4a62e22c6534b2cbaa49212c454e6cfb7c5215e39ef01d0388999b2d38a24ad379245e1b4c69b9259b1c8c86bb011712999b4565192d'
+        value = digest('some_key').hex() + 'some_data' + str(None) + str(PersistMode.SECURED)
 
-        public_key = 'dGVzdCBrZXk='
-        signature = 'dGVzdCBzaWduYXR1cmU='
-        value = 'test value'.encode('utf8')
-
-        self.crypto.check_signature(value, signature, public_key)
-        serialization.load_pem_public_key.assert_called_with(b'test key', backend=default_backend())
-        mocked_pk.verify.assert_called_with(b'test signature', value, ANY, ANY)
+        self.assertTrue(self.crypto.check_signature(digest(value), tcs_sig, public_key))
 
 
 class PublicKeyTests(unittest.TestCase):
