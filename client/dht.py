@@ -27,7 +27,7 @@ async def set_value(request):
     key = request.match_info.get('key')
     try:
         data = await request.json()
-        resp = await server.set(key, Value.of_json(data))
+        await server.set(key, Value.of_json(data))
     except InvalidSignException:
         raise web.HTTPBadRequest
     except UnauthorizedOperationException:
@@ -35,7 +35,7 @@ async def set_value(request):
     except InvalidValueFormatException:
         raise web.HTTPBadRequest
 
-    return web.json_response(resp)
+    return web.HTTPOk()
 
 
 if __name__ == '__main__':
