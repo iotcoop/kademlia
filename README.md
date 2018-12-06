@@ -67,3 +67,105 @@ python -m unittest
 
 ## Fidelity to Original Paper
 The current implementation should be an accurate implementation of all aspects of the paper save one - in Section 2.3 there is the requirement that the original publisher of a key/value republish it every 24 hours.  This library does not do this (though you can easily do this manually).
+
+## API
+### **Post data**
+
+* **URL**
+
+    http://`{hostname}`:`{port}`/dht/`:key`
+
+* **Method**
+
+    `POST`
+
+* **URL Params**
+
+    **Required**:
+
+        key=[String]
+
+* **Success Response:**
+
+  * **Code:** 200 Ok
+
+* **Error Response:**
+
+    * **Code:** 401 UNAUTHORIZED
+
+    OR
+
+    * **Code:** 400 BAD REQUEST
+
+* **Body Structure:**
+
+```
+{
+    "data": "string_payload",
+    "persist_mode": "SECURED",
+    "authorization": {
+        "pub_key": {
+            "key": "0224d2079e86e937224f08aa37a857ca6116546868edde549d0bd6b8536af9d554",
+            "exp_time": null
+        },
+        "sign": "d3f1d0cfeb6e9913ffe1759e9a5a331a65dade83f53ca6ef60f2c588238c4cc2497d6f48b1968e31e98fc749d1887d6bb546718f2676a3308f9701a6b399c2c1"
+    }
+}
+```
+
+* **Sample Call:**
+
+```
+curl --header "Content-Type: application/json" --request POST --data '{
+    "data": "string_payload",
+    "persist_mode": "SECURED",
+    "authorization": {
+        "pub_key": {
+            "key": "0224d2079e86e937224f08aa37a857ca6116546868edde549d0bd6b8536af9d554",
+            "exp_time": null
+        },
+        "sign": "d3f1d0cfeb6e9913ffe1759e9a5a331a65dade83f53ca6ef60f2c588238c4cc2497d6f48b1968e31e98fc749d1887d6bb546718f2676a3308f9701a6b399c2c1"
+    }
+}' http://localhost:8080/dht/test_id
+
+```
+
+### **Get data**
+
+* **URL**
+
+    http://`{hostname}`:`{port}`/dht/`:key`
+
+* **Method**
+
+    `GET`
+
+* **URL Params**
+
+    **Required**:
+
+        key=[String]
+
+* **Success Response:**
+
+  * **Code:** 200 Ok </br>
+    **Content:** 
+    
+    ```{
+      "authorization": {
+        "sign":     "9fac8ed0831013755af002db97c09ad0c5f2ecce2a3b4e6622844d6bc892f9673b6ed4113b15d7d27206cd8c52eac69b6811fe52e776024d96fb63d6a02fc2d6",
+        "pub_key": {
+          "key":    "02ff6438e6ffb6d630c8ca6adac13cee4e3b5542ad56aa90a91caaaccc673008f3",
+          "exp_time": null
+        }
+      },
+      "persist_mode": "SECURED",
+      "data": "{\"authorization\": {\"sign\":   \"d3f1d0cfeb6e9913ffe1759e9a5a331a65dade83f53ca6ef60f2c588238c4cc2497d6   f48b1968e31e98fc749d1887d6bb546718f2676a3308f9701a6b399c2c1\",     \"pub_key\": {\"key\":  \"0224d2079e86e937224f08aa37a857ca6116546868edde549d0bd6b8536af9d554\",   \"exp_time\": null}}, \"data\": \"string_payload\", \"persist_mode\":    \"SECURED\"}"
+        }
+    ```
+
+* **Sample Call:**
+
+```
+curl http://localhost:8080/dht/test_id
+```
