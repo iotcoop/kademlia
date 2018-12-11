@@ -69,7 +69,7 @@ def bytesToBitString(bites):
 def validate_secure_value(dkey, new_value: Value, stored_value: dict):
     if new_value.persist_mode != PersistMode.SECURED:
         raise UnauthorizedOperationException()
-    stored_value = Value.of_json(stored_value)
+    stored_value = Value.of_json(dkey, stored_value)
     if new_value.persist_mode != stored_value.persist_mode:
         raise UnauthorizedOperationException()
     check_new_value_valid(dkey, stored_value, new_value)
@@ -82,7 +82,7 @@ def validate_controlled_value(dkey, new_value, stored_value: list):
     controlled_value = {}
     nv_pub_key = new_value.authorization.pub_key.key
     for val in stored_value:
-        controlled_value[val['authorization']['pub_key']['key']] = Value.of_json(val)
+        controlled_value[val['authorization']['pub_key']['key']] = Value.of_json(dkey, val)
     if nv_pub_key in controlled_value.keys():
         check_new_value_valid(dkey, controlled_value.get(nv_pub_key), new_value)
 

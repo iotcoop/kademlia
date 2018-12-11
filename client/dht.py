@@ -8,6 +8,7 @@ from kademlia.domain.domain import Value
 from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException, InvalidValueFormatException
 from kademlia.network import Server
 from kademlia.storage import DiskStorage
+from kademlia.utils import digest
 
 
 async def read_key(request):
@@ -27,7 +28,7 @@ async def set_value(request):
     key = request.match_info.get('key')
     try:
         data = await request.json()
-        await server.set(key, Value.of_json(data))
+        await server.set(key, Value.of_json(digest(key), data))
     except InvalidSignException:
         raise web.HTTPBadRequest
     except UnauthorizedOperationException:

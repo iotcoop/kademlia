@@ -100,7 +100,8 @@ class PersistMode(Enum):
 
 class Value(JsonSerializable):
 
-    def __init__(self, data, persist_mode, authorization: Authorization):
+    def __init__(self, dkey: bytes, data: str, persist_mode: str, authorization: Authorization):
+        self.__dkey__ = dkey
         self.authorization = authorization
         self.data = data
         self.persist_mode = persist_mode
@@ -142,19 +143,19 @@ class Value(JsonSerializable):
         self._authorization = authorization
 
     @staticmethod
-    def of_json(dct: dict):
+    def of_json(key: bytes, dct: dict):
         check_value_json(dct)
-        return Value(dct['data'], dct['persist_mode'], Authorization.of_json(dct['authorization']))
+        return Value(key, dct['data'], dct['persist_mode'], Authorization.of_json(dct['authorization']))
 
     @staticmethod
-    def of_string(string: str):
+    def of_string(key: bytes, string: str):
         import json
         dct = json.loads(string)
-        return Value.of_json(dct)
+        return Value.of_json(key, dct)
 
     @staticmethod
-    def get_signed(dkey, data, persist_mode=PersistMode.SECURED, time=None, priv_key_path=Config.PRIVATE_KEY_PATH,
-                   pub_key_path=Config.PUBLIC_KEY_PATH):
+    def of_params(dkey: bytes, data: str, persist_mode: PersistMode, time=None, priv_key_path=Config.PRIVATE_KEY_PATH,
+                  pub_key_path=Config.PUBLIC_KEY_PATH):
         from kademlia.utils import digest
 
         log.debug(f"Going to sign {data} with key: [{dkey.hex()}]")
@@ -166,8 +167,59 @@ class Value(JsonSerializable):
             pub_key = pub_key.read()
         log.debug(f"Successfully signed data with key: [{dkey.hex()}]")
 
-        return Value(data, str(persist_mode),
-                     Authorization(PublicKey(pub_key, time), signature))
+        return Value(dkey, data, str(persist_mode), Authorization(PublicKey(pub_key, time), signature))
+
+
+class NodeResponse(JsonSerializable):
+
+    def __init__(self, dkey: bytes, data: str, authorization: Authorization):
+        self.__dkey__ = dkey
+        self.authorization = authorization
+        self.data = data
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, data):
+        if isinstance(data, str) or data is None:
+            self._data = data
+        else:
+            raise TypeError("Value must be of type str, or NoneType")
+
+    @property
+    def authorization(self):
+        return self._authorization
+
+    @authorization.setter
+    def authorization(self, authorization):
+        assert type(authorization) is Authorization or \
+               authorization is None
+        self._authorization = authorization
+
+    def is_valid(self):
+        from kademlia.utils import digest
+        dval = digest(self.__dkey__.hex() + self.data + str(self.authorization.pub_key.exp_time))
+        pub_key = self.authorization.pub_key.key
+        return Crypto.check_signature(dval, self.authorization.sign, pub_key)
+
+    @staticmethod
+    def of_params(dkey: bytes, data: str, time=None, priv_key_path=Config.PRIVATE_KEY_PATH,
+                  pub_key_path=Config.PUBLIC_KEY_PATH):
+
+        from kademlia.utils import digest
+
+        log.debug(f"Going to sign {data} with key: [{dkey.hex()}]")
+
+        dval = digest(dkey.hex() + str(data) + str(time))
+        with open(priv_key_path) as priv_key:
+            signature = Crypto.get_signature(dval, priv_key.read()).hex()
+        with open(pub_key_path) as pub_key:
+            pub_key = pub_key.read()
+        log.debug(f"Successfully signed data with key: [{dkey.hex()}]")
+
+        return NodeResponse(dkey, data, Authorization(PublicKey(pub_key, time), signature))
 
 
 def check_value_json(dct: dict):
