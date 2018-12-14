@@ -1,9 +1,9 @@
 import logging
 
 from kademlia.config import Config
-from kademlia.domain.domain import Value
+from kademlia.domain.domain import NodeResponse, Authorization, PublicKey
 from kademlia.node import Node, NodeHeap
-from kademlia.utils import gather_dict, digest
+from kademlia.utils import gather_dict
 
 log = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class ValueSpiderCrawl(SpiderCrawl):
             if not response.happened():
                 toremove.append(peerid)
             elif response.hasValue():
-                if response.signValid(self.node.id):
+                if response.isValid(self.node.id):
                     found_values.append(response.getValue())
             else:
                 peer = self.nearest.getNodeById(peerid)
@@ -153,15 +153,19 @@ class RPCFindResponse(object):
     def hasValue(self):
         return isinstance(self.response[1], dict)
 
-    def signValid(self, node_id):
-        from kademlia.crypto import Crypto
+    def isValid(self, node_id):
+        try:
+            raw_response = self.response[1]
+            data = raw_response.get('data')
+            sign = raw_response.get('authorization').get('sign')
+            pub_key = raw_response.get('authorization').get('pub_key').get('key')
+            exp_time = raw_response.get('authorization').get('pub_key').get('exp_time')
+            resp_auth = Authorization(PublicKey(pub_key, exp_time), sign)
+            response = NodeResponse(node_id, data, resp_auth)
 
-        response = Value.of_json(self.response[1])
-
-        dval = digest(node_id.hex() + str(response.data) + str(response.authorization.pub_key.exp_time)
-                      + str(response.persist_mode))
-
-        return Crypto.check_signature(dval, response.authorization.sign, response.authorization.pub_key.key)
+            return response.is_valid()
+        except:
+            return False
 
     def getValue(self):
         return self.response[1]

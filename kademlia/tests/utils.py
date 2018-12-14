@@ -32,6 +32,6 @@ class FakeProtocol:
 def get_signed_value_with_keys(priv_key_path, pub_key_path):
 
         def get_signed_value(dkey, value, persist_mode):
-            return Value.get_signed(dkey, value, persist_mode, None, priv_key_path, pub_key_path)
+            return Value.of_params(dkey, value, persist_mode, None, priv_key_path, pub_key_path)
 
         return get_signed_value

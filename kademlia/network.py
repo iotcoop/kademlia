@@ -7,7 +7,7 @@ import pickle
 import asyncio
 import logging
 
-from kademlia.domain.domain import Value, PersistMode
+from kademlia.domain.domain import Value, PersistMode, NodeResponse
 from kademlia.protocol import KademliaProtocol
 from kademlia.utils import digest, validate_authorization, select_most_common_response, validate_controlled_value,\
     validate_secure_value
@@ -150,21 +150,21 @@ class Server(object):
         nearest = self.protocol.router.findNeighbors(node)
         if len(nearest) == 0:
             log.warning("There are no known neighbors to get key %s", key)
-            return Value.get_signed(dkey, None).to_dict()
+            return Value.of_params(dkey, None).to_dict()
         spider = ValueSpiderCrawl(self.protocol, node, nearest,
                                   self.ksize, self.alpha)
 
         local_value = self.storage.get(dkey, None)
 
         if local_value:
-            local_value = Value.get_signed(dkey, local_value).to_dict()
+            local_value = NodeResponse.of_params(dkey, local_value).to_dict()
             responses = await spider.find([local_value])
         else:
             responses = await spider.find()
 
         most_common_response = select_most_common_response(responses)
 
-        return Value.get_signed(dkey, most_common_response).to_dict()
+        return NodeResponse.of_params(dkey, most_common_response).to_dict()
 
     async def set(self, key, new_value: Value):
         """
@@ -185,7 +185,7 @@ class Server(object):
             stored_value = json.loads(value_response_json['data'])
             if isinstance(stored_value, list):
                 validate_controlled_value(dkey, new_value, stored_value)
-                cv_dict = {val['authorization']['pub_key']['key']: Value.of_json(val) for val in stored_value}
+                cv_dict = {val['authorization']['pub_key']['key']: Value.of_json(dkey, val) for val in stored_value}
                 cv_dict.update({new_value.authorization.pub_key.key: new_value})
                 result = [val.to_dict() for val in cv_dict.values()]
             else:
