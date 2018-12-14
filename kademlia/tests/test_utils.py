@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from kademlia.crypto import Crypto
 from kademlia.domain.domain import PersistMode
 from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException
-from kademlia.utils import digest, sharedPrefix, OrderedSet, validate_authorization, check_new_value_valid
+from kademlia.utils import digest, sharedPrefix, OrderedSet, validate_authorization, is_new_value_valid
 
 
 class UtilsTest(unittest.TestCase):
@@ -62,26 +62,26 @@ class UtilsTest(unittest.TestCase):
         stored_value.authorization = None
         new_value = Mock()
         new_value.authorization = None
-        self.assertTrue(check_new_value_valid('dkey', stored_value, new_value))
+        self.assertTrue(is_new_value_valid('dkey', stored_value, new_value))
 
         new_value.authorization = 'authorization'
-        self.assertTrue(check_new_value_valid('dkey', stored_value, new_value))
+        self.assertTrue(is_new_value_valid('dkey', stored_value, new_value))
         mocked_va.assert_called_with('dkey', new_value)
 
         new_value.authorization = Mock()
         new_value.authorization.pub_key.key = 'key'
         stored_value.authorization = Mock()
         stored_value.authorization.pub_key.key = 'key'
-        self.assertTrue(check_new_value_valid('dkey', stored_value, new_value))
+        self.assertTrue(is_new_value_valid('dkey', stored_value, new_value))
         mocked_va.assert_called_with('dkey', new_value)
 
         new_value.authorization.pub_key.key = 'another key'
         with self.assertRaises(UnauthorizedOperationException):
-            check_new_value_valid('dkey', stored_value, new_value)
+            is_new_value_valid('dkey', stored_value, new_value)
 
         new_value.authorization = None
         with self.assertRaises(UnauthorizedOperationException):
-            check_new_value_valid('dkey', stored_value, new_value)
+            is_new_value_valid('dkey', stored_value, new_value)
 
 
 class OrderedSetTest(unittest.TestCase):

@@ -6,10 +6,10 @@ import logging
 from rpcudp.protocol import RPCProtocol
 
 from kademlia.config import Config
-from kademlia.utils import digest, validate_authorization, check_new_value_valid, select_most_common_response, \
-    validate_secure_value, validate_controlled_value
+from kademlia.utils import digest, select_most_common_response
 from kademlia.crawling import ValueSpiderCrawl
-from kademlia.domain.domain import Value, PersistMode, NodeResponse
+from kademlia.domain.domain import Value, NodeResponse, validate_authorization, \
+    validate_secure_value, is_new_value_valid, ValueFactory, ControlledValue
 from kademlia.exceptions import UnauthorizedOperationException, InvalidSignException, InvalidValueFormatException
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
@@ -54,48 +54,24 @@ class KademliaProtocol(RPCProtocol):
             source = Node(nodeid, sender[0], sender[1])
             self.welcomeIfNewNode(source)
             log.debug(f"Received value for key {key.hex()} is valid,"
-                      f" going to retrieve values stored under key : {key.hex()}")
-            stored_value_json = await self.__get_most_common(key)
+                      f" going to retrieve values stored under given key")
+            stored_value_json = await self._get_most_common(key)
 
-            if isinstance(value_json, list):
-                for val in value_json:
-                    val = Value.of_json(key, val)
-                    assert val.persist_mode == PersistMode.CONTROLLED
-                    validate_authorization(key, val)
+            new_value = Value.of_json(key, value_json)
+            if not new_value.is_valid():
+                raise InvalidSignException(f"Invalid signature for value {value}")
 
-                if stored_value_json:
-                    stored_value = json.loads(stored_value_json)
-                    if isinstance(stored_value, list):
-                        #TODO: Need timestamp
-                        sv_dict = {val['authorization']['pub_key']['key']: Value.of_json(key, val) for val in stored_value}
-                        nv_dict = {val['authorization']['pub_key']['key']: Value.of_json(key, val) for val in value_json}
-                        sv_dict.update(nv_dict)
-                        result = [val.to_dict() for val in sv_dict.values()]
-                    else:
-                        raise UnauthorizedOperationException()
+            if stored_value_json:
+                stored_value = ValueFactory.create_from_string(key, stored_value_json)
+                if isinstance(stored_value, ControlledValue):
+                    result = stored_value.add_value(new_value)
                 else:
-                    result = value
+                    validate_secure_value(key, new_value, stored_value)
+                    result = new_value
             else:
-                des_value = Value.of_json(key, value_json)
-                validate_authorization(key, des_value)
+                result = ValueFactory.create_from_value(new_value)
 
-                if stored_value_json:
-                    stored_value = json.loads(stored_value_json)
-                    if isinstance(stored_value, list):
-                        validate_controlled_value(key, des_value, stored_value)
-                        cv_dict = {val['authorization']['pub_key']['key']: Value.of_json(key, val) for val in stored_value}
-                        cv_dict.update({des_value.authorization.pub_key.key: des_value})
-                        result = [val.to_dict() for val in cv_dict.values()]
-                    else:
-                        validate_secure_value(key, des_value, stored_value)
-                        result = des_value.to_dict()
-                else:
-                    if des_value.persist_mode == PersistMode.SECURED:
-                        result = des_value.to_dict()
-                    else:
-                        result = [des_value.to_dict()]
-
-            self.storage[key] = json.dumps(result)
+            self.storage[key] = str(result)
 
         except AssertionError:
             log.exception("Unable to store value, got value with unsupported format: %s", value)
@@ -117,10 +93,11 @@ class KademliaProtocol(RPCProtocol):
             validate_authorization(key, des_value)
         log.debug(f"Received value for key {key.hex()} is valid,"
                   f" going to retrieve values stored under key : {key.hex}")
-        stored_value_json = await self.__get_most_common(key)
+        stored_value_json = await self._get_most_common(key)
         if stored_value_json:
             stored_value = Value.of_json(key, json.loads(stored_value_json))
-            check_new_value_valid(key, stored_value, des_value)
+            if not is_new_value_valid(key, stored_value, des_value):
+                raise UnauthorizedOperationException()
 
     def rpc_find_node(self, sender, nodeid, key):
         log.info("finding neighbors of %i in local table",
@@ -194,7 +171,17 @@ class KademliaProtocol(RPCProtocol):
                 first = neighbors[0].distanceTo(keynode)
                 thisNodeClosest = self.sourceNode.distanceTo(keynode) < first
             if len(neighbors) == 0 or (newNodeClose and thisNodeClosest):
-                asyncio.ensure_future(self.callStore(node, key, value))
+                values_to_republish = []
+                # TODO: add try
+                parsed_val = json.loads(value)
+                if isinstance(parsed_val, list):
+                    [values_to_republish.append(json.dumps(val)) for val in parsed_val]
+                else:
+                    values_to_republish.append(value)
+
+                for val in values_to_republish:
+                    asyncio.ensure_future(self.callStore(node, key, val))
+
         self.router.addContact(node)
 
     def handleCallResponse(self, result, node):
@@ -211,7 +198,7 @@ class KademliaProtocol(RPCProtocol):
         self.welcomeIfNewNode(node)
         return result
 
-    async def __get_most_common(self, key):
+    async def _get_most_common(self, key):
         log.info("Looking up key %s", key.hex())
         node = Node(key)
         nearest = self.router.findNeighbors(node)

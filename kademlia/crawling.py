@@ -164,7 +164,8 @@ class RPCFindResponse(object):
             response = NodeResponse(node_id, data, resp_auth)
 
             return response.is_valid()
-        except:
+        except Exception as ex:
+            log.exception(ex)
             return False
 
     def getValue(self):
