@@ -7,7 +7,6 @@ log = logging.getLogger(__name__)
 
 class Crypto(object):
 
-    #TODO: add support of not compact signatures
     @staticmethod
     def get_signature(message: bytes, priv_key: str):
         priv_key = PrivateKey(priv_key, raw=False)

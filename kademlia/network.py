@@ -7,7 +7,7 @@ import pickle
 import asyncio
 import logging
 
-from kademlia.domain.domain import Value, NodeResponse, ControlledValue, ValueFactory, validate_secure_value
+from kademlia.domain.domain import Value, NodeMessage, ControlledValue, ValueFactory, validate_secure_value
 from kademlia.exceptions import UnauthorizedOperationException
 from kademlia.protocol import KademliaProtocol
 from kademlia.utils import digest, select_most_common_response
@@ -158,21 +158,21 @@ class Server(object):
         nearest = self.protocol.router.findNeighbors(node)
         if len(nearest) == 0:
             log.warning("There are no known neighbors to get key %s", key)
-            return NodeResponse.of_params(dkey, None)
+            return NodeMessage.of_params(dkey, None)
         spider = ValueSpiderCrawl(self.protocol, node, nearest,
                                   self.ksize, self.alpha)
 
         local_value = self.storage.get(dkey, None)
 
         if local_value:
-            local_value = NodeResponse.of_params(dkey, local_value).to_dict()
+            local_value = NodeMessage.of_params(dkey, local_value).to_dict()
             responses = await spider.find([local_value])
         else:
             responses = await spider.find()
 
         most_common_response = select_most_common_response(responses)
 
-        return NodeResponse.of_params(dkey, most_common_response)
+        return NodeMessage.of_params(dkey, most_common_response)
 
     async def set(self, key, new_value: Value):
         """

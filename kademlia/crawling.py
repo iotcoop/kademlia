@@ -1,7 +1,7 @@
 import logging
 
 from kademlia.config import Config
-from kademlia.domain.domain import NodeResponse, Authorization, PublicKey
+from kademlia.domain.domain import NodeMessage, Authorization, PublicKey
 from kademlia.node import Node, NodeHeap
 from kademlia.utils import gather_dict
 
@@ -161,7 +161,7 @@ class RPCFindResponse(object):
             pub_key = raw_response.get('authorization').get('pub_key').get('key')
             exp_time = raw_response.get('authorization').get('pub_key').get('exp_time')
             resp_auth = Authorization(PublicKey(pub_key, exp_time), sign)
-            response = NodeResponse(node_id, data, resp_auth)
+            response = NodeMessage(node_id, data, resp_auth)
 
             return response.is_valid()
         except Exception as ex:

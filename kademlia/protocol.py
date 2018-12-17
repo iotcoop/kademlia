@@ -8,7 +8,7 @@ from rpcudp.protocol import RPCProtocol
 from kademlia.config import Config
 from kademlia.utils import digest, select_most_common_response
 from kademlia.crawling import ValueSpiderCrawl
-from kademlia.domain.domain import Value, NodeResponse, validate_authorization, \
+from kademlia.domain.domain import Value, NodeMessage, validate_authorization, \
     validate_secure_value, is_new_value_valid, ValueFactory, ControlledValue
 from kademlia.exceptions import UnauthorizedOperationException, InvalidSignException, InvalidValueFormatException
 from kademlia.node import Node
@@ -114,7 +114,7 @@ class KademliaProtocol(RPCProtocol):
         value = self.storage.get(key, None)
         if value is None:
             return self.rpc_find_node(sender, nodeid, key)
-        signed_value = NodeResponse.of_params(key, value).to_dict()
+        signed_value = NodeMessage.of_params(key, value).to_dict()
         return signed_value
 
     async def callFindNode(self, nodeToAsk, nodeToFind):
@@ -210,7 +210,7 @@ class KademliaProtocol(RPCProtocol):
         spider = ValueSpiderCrawl(self, node, nearest, Config.K_SIZE, Config.ALPHA)
 
         if local_value:
-            local_value = NodeResponse.of_params(key, local_value).to_dict()
+            local_value = NodeMessage.of_params(key, local_value).to_dict()
             responses = await spider.find([local_value])
         else:
             responses = await spider.find()

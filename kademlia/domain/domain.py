@@ -270,7 +270,7 @@ class ValueFactory(object):
             raise ValueError("Unknown persist mode")
 
 
-class NodeResponse(JsonSerializable):
+class NodeMessage(JsonSerializable):
 
     def __init__(self, dkey: bytes, data: str, authorization: Authorization):
         self.__dkey = dkey
@@ -283,10 +283,7 @@ class NodeResponse(JsonSerializable):
 
     @data.setter
     def data(self, data):
-        if isinstance(data, str) or data is None:
-            self._data = data
-        else:
-            raise TypeError('Value must be of type str, or NoneType')
+        self._data = data
 
     @property
     def authorization(self):
@@ -319,7 +316,7 @@ class NodeResponse(JsonSerializable):
             pub_key = pub_key.read()
         log.debug(f'Successfully signed data with key: [{dkey.hex()}]')
 
-        return NodeResponse(dkey, data, Authorization(PublicKey(pub_key, time), signature))
+        return NodeMessage(dkey, data, Authorization(PublicKey(pub_key, time), signature))
 
 
 def is_new_value_valid(dkey, stored_value: Value, new_value: Value):
