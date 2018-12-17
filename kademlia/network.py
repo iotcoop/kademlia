@@ -165,7 +165,7 @@ class Server(object):
         local_value = self.storage.get(dkey, None)
 
         if local_value:
-            local_value = NodeMessage.of_params(dkey, local_value).to_dict()
+            local_value = NodeMessage.of_params(dkey, local_value).to_json()
             responses = await spider.find([local_value])
         else:
             responses = await spider.find()

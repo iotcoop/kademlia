@@ -73,9 +73,9 @@ class ServerTests(unittest.TestCase):
                                                           pub_key_path='kademlia/tests/resources/public.der')
             key_test = 'test key'
             dkey_test = digest(key_test)
-            data = json.dumps(get_signed_value(dkey_test, 'data', PersistMode.SECURED).to_dict())
+            data = json.dumps(get_signed_value(dkey_test, 'data', PersistMode.SECURED).to_json())
             value = get_signed_value(dkey_test, data, PersistMode.SECURED)
-            server.get = Mock(return_value=async_return(get_signed_value(dkey_test, data, PersistMode.SECURED).to_dict()))
+            server.get = Mock(return_value=async_return(get_signed_value(dkey_test, data, PersistMode.SECURED).to_json()))
             server.set_digest = Mock(return_value=async_return(True))
 
             await server.set('test key', value)

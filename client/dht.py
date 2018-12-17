@@ -19,7 +19,7 @@ async def read_key(request):
     except:
         raise web.HTTPInternalServerError()
 
-    return web.json_response(resp.to_dict())
+    return web.json_response(resp.to_json())
 
 
 async def set_value(request):

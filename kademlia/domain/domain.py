@@ -14,14 +14,14 @@ log = logging.getLogger(__name__)
 
 class JsonSerializable(object):
 
-    def to_dict(self):
+    def to_json(self):
         json_dict = {}
         for k, v in self.__dict__.items():
             if '__' not in k:
                 # Remove `_` from field name
                 k = k[1:]
                 if isinstance(v, JsonSerializable):
-                    json_dict[k] = v.to_dict()
+                    json_dict[k] = v.to_json()
                 elif v is None or type(v) in [str, int, bool, dict, list]:
                     json_dict[k] = v
                 elif isinstance(v, PersistMode):
@@ -110,8 +110,10 @@ class Value(JsonSerializable):
         self.persist_mode = persist_mode
 
     def __str__(self):
-        import json
-        return json.dumps(self.to_dict())
+        return json.dumps(self.to_json())
+
+    def __eq__(self, other):
+        return self.to_json() == other.to_json()
 
     @property
     def data(self):
@@ -181,14 +183,17 @@ class Value(JsonSerializable):
         return Value(dkey, data, str(persist_mode), Authorization(PublicKey(pub_key, time), signature))
 
 
-class ControlledValue(object):
+class ControlledValue(JsonSerializable):
 
     def __init__(self, dkey: bytes, values: list):
         self.__dkey = dkey
         self._values = {val.authorization.pub_key.key: val for val in values}
 
     def __str__(self):
-        return json.dumps([val.to_dict() for val in self.values])
+        return json.dumps([val.to_json() for val in self.values])
+
+    def to_json(self):
+        return [val.to_json() for val in self.values]
 
     @property
     def values(self):

@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 class KademliaProtocol(RPCProtocol):
     def __init__(self, sourceNode, storage, ksize):
-        RPCProtocol.__init__(self)
+        RPCProtocol.__init__(self, waitTimeout=100)
         self.router = RoutingTable(self, ksize, sourceNode)
         self.storage = storage
         self.sourceNode = sourceNode
@@ -47,14 +47,12 @@ class KademliaProtocol(RPCProtocol):
                   sender, key.hex(), value)
 
         try:
-
             value_json = json.loads(value)
             source = Node(nodeid, sender[0], sender[1])
             self.welcomeIfNewNode(source)
             log.debug(f"Received value for key {key.hex()} is valid,"
                       f" going to retrieve values stored under given key")
             stored_value_json = await self._get_most_common(key)
-
             new_value = Value.of_json(key, value_json)
             if not new_value.is_valid():
                 raise InvalidSignException(f"Invalid signature for value {value}")
@@ -71,6 +69,7 @@ class KademliaProtocol(RPCProtocol):
 
             self.storage[key] = str(result)
 
+            return True
         except AssertionError:
             log.exception("Unable to store value, got value with unsupported format: %s", value)
 
@@ -83,7 +82,7 @@ class KademliaProtocol(RPCProtocol):
         except InvalidValueFormatException:
             log.exception("Invalid value format, value should contain authorization")
 
-        return True
+        return False
 
     async def _handle_secured_value_store(self, json_parsed_value, key):
         des_value = Value.of_json(key, json_parsed_value)
@@ -112,7 +111,7 @@ class KademliaProtocol(RPCProtocol):
         value = self.storage.get(key, None)
         if value is None:
             return self.rpc_find_node(sender, nodeid, key)
-        signed_value = NodeMessage.of_params(key, value).to_dict()
+        signed_value = NodeMessage.of_params(key, value).to_json()
         return signed_value
 
     async def callFindNode(self, nodeToAsk, nodeToFind):
@@ -165,15 +164,20 @@ class KademliaProtocol(RPCProtocol):
                 thisNodeClosest = self.sourceNode.distanceTo(keynode) < first
             if len(neighbors) == 0 or (newNodeClose and thisNodeClosest):
                 values_to_republish = []
-                # TODO: add try
-                parsed_val = json.loads(value)
-                if isinstance(parsed_val, list):
-                    [values_to_republish.append(json.dumps(val)) for val in parsed_val]
-                else:
-                    values_to_republish.append(value)
 
-                for val in values_to_republish:
-                    asyncio.ensure_future(self.callStore(node, key, val))
+                try:
+                    parsed_val = json.loads(value)
+                    if isinstance(parsed_val, list):
+                        [values_to_republish.append(json.dumps(val)) for val in parsed_val]
+                    else:
+                        values_to_republish.append(value)
+
+                    for val in values_to_republish:
+                        asyncio.ensure_future(self.callStore(node, key, val))
+
+                except Exception as ex:
+                    log.exception(ex)
+                    continue
 
         self.router.addContact(node)
 
@@ -203,7 +207,7 @@ class KademliaProtocol(RPCProtocol):
         spider = ValueSpiderCrawl(self, node, nearest, Config.K_SIZE, Config.ALPHA)
 
         if local_value:
-            local_value = NodeMessage.of_params(key, local_value).to_dict()
+            local_value = NodeMessage.of_params(key, local_value).to_json()
             responses = await spider.find([local_value])
         else:
             responses = await spider.find()
