@@ -37,9 +37,6 @@ class KademliaProtocol(RPCProtocol):
     def rpc_stun(self, sender):
         return sender
 
-    def rpc_known_nodes(self):
-        return [node for bucket in self.router.buckets for node in bucket.nodes.values()]
-
     def rpc_ping(self, sender, nodeid):
         source = Node(nodeid, sender[0], sender[1])
         self.welcomeIfNewNode(source)
@@ -50,6 +47,7 @@ class KademliaProtocol(RPCProtocol):
                   sender, key.hex(), value)
 
         try:
+
             value_json = json.loads(value)
             source = Node(nodeid, sender[0], sender[1])
             self.welcomeIfNewNode(source)
@@ -137,11 +135,6 @@ class KademliaProtocol(RPCProtocol):
     async def callStore(self, nodeToAsk, key, value):
         address = (nodeToAsk.ip, nodeToAsk.port)
         result = await self.store(address, self.sourceNode.id, key, value)
-        return self.handleCallResponse(result, nodeToAsk)
-
-    async def callKnownNodes(self, nodeToAsk):
-        address = (nodeToAsk.ip, nodeToAsk.port)
-        result = await self.known_nodes(address)
         return self.handleCallResponse(result, nodeToAsk)
 
     def welcomeIfNewNode(self, node):
