@@ -3,9 +3,9 @@ import unittest
 from unittest.mock import Mock, patch
 
 from kademlia.crypto import Crypto
-from kademlia.domain.domain import PersistMode
+from kademlia.domain.domain import PersistMode, is_new_value_valid, validate_authorization
 from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException
-from kademlia.utils import digest, sharedPrefix, OrderedSet, validate_authorization, is_new_value_valid
+from kademlia.utils import digest, sharedPrefix, OrderedSet
 
 
 class UtilsTest(unittest.TestCase):
@@ -29,9 +29,8 @@ class UtilsTest(unittest.TestCase):
         args = ['hi']
         self.assertEqual(sharedPrefix(args), 'hi')
 
-    @patch('kademlia.utils.digest')
     @patch('time.time', Mock(return_value=5))
-    def test_validate_authorization(self, mocked_digest):
+    def test_validate_authorization(self):
         Crypto.check_signature = Mock(return_value=True)
         value = Mock()
         value.data = 'data'
@@ -39,13 +38,15 @@ class UtilsTest(unittest.TestCase):
         value.authorization.pub_key.exp_time = None
         value.authorization.pub_key.key = 'key'
         value.persist_mode = PersistMode.SECURED
-        mocked_digest.return_value = 'digest'
-        validate_authorization(hashlib.sha1('key'.encode('utf8')).digest(), value)
-        Crypto.check_signature.assert_called_with('digest', 'sign', 'key')
+        dkey = hashlib.sha1('key'.encode('utf8')).digest()
+        dval = digest(dkey.hex() + value.data + str(value.authorization.pub_key.exp_time) + str(value.persist_mode))
+        validate_authorization(dkey, value)
+        Crypto.check_signature.assert_called_with(dval, 'sign', 'key')
 
         value.authorization.pub_key.exp_time = 6
-        validate_authorization(hashlib.sha1('key'.encode('utf8')).digest(), value)
-        Crypto.check_signature.assert_called_with('digest', 'sign', 'key')
+        dval = digest(dkey.hex() + value.data + str(value.authorization.pub_key.exp_time) + str(value.persist_mode))
+        validate_authorization(dkey, value)
+        Crypto.check_signature.assert_called_with(dval, 'sign', 'key')
 
         value.authorization.pub_key.exp_time = 4
         with self.assertRaises(AssertionError):
@@ -56,32 +57,24 @@ class UtilsTest(unittest.TestCase):
         with self.assertRaises(InvalidSignException):
             validate_authorization(hashlib.sha1('key'.encode('utf8')).digest(), value)
 
-    @patch('kademlia.utils.validate_authorization')
+    @patch('kademlia.domain.domain.validate_authorization')
     def test_check_new_value_valid(self, mocked_va):
         stored_value = Mock()
-        stored_value.authorization = None
         new_value = Mock()
-        new_value.authorization = None
-        self.assertTrue(is_new_value_valid('dkey', stored_value, new_value))
-
-        new_value.authorization = 'authorization'
-        self.assertTrue(is_new_value_valid('dkey', stored_value, new_value))
-        mocked_va.assert_called_with('dkey', new_value)
 
         new_value.authorization = Mock()
-        new_value.authorization.pub_key.key = 'key'
+        new_value.authorization.pub_key.key = '0224d2079e86e937224f08aa37a857ca6116546868edde549d0bd6b8536af9d554'
         stored_value.authorization = Mock()
-        stored_value.authorization.pub_key.key = 'key'
+        stored_value.authorization.pub_key.key = '0224d2079e86e937224f08aa37a857ca6116546868edde549d0bd6b8536af9d554'
         self.assertTrue(is_new_value_valid('dkey', stored_value, new_value))
         mocked_va.assert_called_with('dkey', new_value)
 
         new_value.authorization.pub_key.key = 'another key'
-        with self.assertRaises(UnauthorizedOperationException):
-            is_new_value_valid('dkey', stored_value, new_value)
+
+        self.assertFalse(is_new_value_valid('dkey', stored_value, new_value))
 
         new_value.authorization = None
-        with self.assertRaises(UnauthorizedOperationException):
-            is_new_value_valid('dkey', stored_value, new_value)
+        self.assertFalse(is_new_value_valid('dkey', stored_value, new_value))
 
 
 class OrderedSetTest(unittest.TestCase):

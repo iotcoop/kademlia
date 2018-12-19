@@ -263,7 +263,7 @@ class ValueFactory(object):
         try:
             return ValueFactory.create_from_json(dkey, json.loads(string))
         except Exception as ex:
-            log.debug(f":::::::::::::::::::::::::::::::::::  {string}")
+            log.exception(ex)
 
     @staticmethod
     def create_from_value(value: Value):

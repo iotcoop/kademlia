@@ -8,8 +8,7 @@ from rpcudp.protocol import RPCProtocol
 from kademlia.config import Config
 from kademlia.utils import digest, select_most_common_response
 from kademlia.crawling import ValueSpiderCrawl
-from kademlia.domain.domain import Value, NodeMessage, validate_authorization, \
-    validate_secure_value, is_new_value_valid, ValueFactory, ControlledValue
+from kademlia.domain.domain import Value, NodeMessage, validate_secure_value, ValueFactory, ControlledValue
 from kademlia.exceptions import UnauthorizedOperationException, InvalidSignException, InvalidValueFormatException
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
@@ -83,18 +82,6 @@ class KademliaProtocol(RPCProtocol):
             log.exception("Invalid value format, value should contain authorization")
 
         return False
-
-    async def _handle_secured_value_store(self, json_parsed_value, key):
-        des_value = Value.of_json(key, json_parsed_value)
-        if des_value.authorization is not None:
-            validate_authorization(key, des_value)
-        log.debug(f"Received value for key {key.hex()} is valid,"
-                  f" going to retrieve values stored under key : {key.hex}")
-        stored_value_json = await self._get_most_common(key)
-        if stored_value_json:
-            stored_value = Value.of_json(key, json.loads(stored_value_json))
-            if not is_new_value_valid(key, stored_value, des_value):
-                raise UnauthorizedOperationException()
 
     def rpc_find_node(self, sender, nodeid, key):
         log.info("finding neighbors of %i in local table",

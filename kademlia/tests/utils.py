@@ -5,7 +5,7 @@ import random
 import hashlib
 from struct import pack
 
-from kademlia.domain.domain import Value, PersistMode
+from kademlia.domain.domain import Value, NodeMessage
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
 
@@ -35,3 +35,13 @@ def get_signed_value_with_keys(priv_key_path, pub_key_path):
             return Value.of_params(dkey, value, persist_mode, None, priv_key_path, pub_key_path)
 
         return get_signed_value
+
+
+def get_signed_message_with_keys(priv_key_path, pub_key_path):
+
+        def get_signed_message(dkey, value):
+            return NodeMessage.of_params(dkey, value, None, priv_key_path, pub_key_path)
+
+        return get_signed_message
+
+
