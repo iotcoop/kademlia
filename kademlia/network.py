@@ -7,10 +7,11 @@ import pickle
 import asyncio
 import logging
 
-from kademlia.domain.domain import Value, NodeMessage, ControlledValue, ValueFactory, validate_secure_value
+from kademlia.domain.domain import Value, NodeMessage, ControlledValue, ValueFactory, validate_secure_value, \
+    select_most_common_response
 from kademlia.exceptions import UnauthorizedOperationException
 from kademlia.protocol import KademliaProtocol
-from kademlia.utils import digest, select_most_common_response
+from kademlia.utils import digest
 from kademlia.storage import ForgetfulStorage
 from kademlia.node import Node
 from kademlia.crawling import ValueSpiderCrawl
@@ -170,7 +171,7 @@ class Server(object):
         else:
             responses = await spider.find()
 
-        most_common_response = select_most_common_response(responses)
+        most_common_response = select_most_common_response(dkey, responses)
 
         return NodeMessage.of_params(dkey, most_common_response)
 

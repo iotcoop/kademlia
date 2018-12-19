@@ -6,9 +6,10 @@ import logging
 from rpcudp.protocol import RPCProtocol
 
 from kademlia.config import Config
-from kademlia.utils import digest, select_most_common_response
+from kademlia.utils import digest
 from kademlia.crawling import ValueSpiderCrawl
-from kademlia.domain.domain import Value, NodeMessage, validate_secure_value, ValueFactory, ControlledValue
+from kademlia.domain.domain import Value, NodeMessage, validate_secure_value, ValueFactory, ControlledValue,\
+    select_most_common_response
 from kademlia.exceptions import UnauthorizedOperationException, InvalidSignException, InvalidValueFormatException
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
@@ -51,13 +52,12 @@ class KademliaProtocol(RPCProtocol):
             self.welcomeIfNewNode(source)
             log.debug(f"Received value for key {key.hex()} is valid,"
                       f" going to retrieve values stored under given key")
-            stored_value_json = await self._get_most_common(key)
+            stored_value = await self._get_most_common(key)
             new_value = Value.of_json(key, value_json)
             if not new_value.is_valid():
                 raise InvalidSignException(f"Invalid signature for value {value}")
 
-            if stored_value_json:
-                stored_value = ValueFactory.create_from_string(key, stored_value_json)
+            if stored_value:
                 if isinstance(stored_value, ControlledValue):
                     result = stored_value.add_value(new_value)
                 else:
@@ -199,5 +199,5 @@ class KademliaProtocol(RPCProtocol):
         else:
             responses = await spider.find()
 
-        return select_most_common_response(responses)
+        return select_most_common_response(key, responses)
 

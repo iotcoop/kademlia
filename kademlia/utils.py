@@ -5,6 +5,7 @@ import hashlib
 import logging
 import operator
 import asyncio
+from functools import partial
 
 log = logging.getLogger(__name__)
 
@@ -60,16 +61,27 @@ def bytesToBitString(bites):
     return "".join(bits)
 
 
-def select_most_common_response(responses):
-    from collections import Counter
+def get_field(field_name: str):
+    def get_from(value: dict) -> str:
+        return value.get(field_name) if value else None
 
-    if responses:
-        if not isinstance(responses, list):
-            responses = [responses]
+    return get_from
 
-        values = [r['data'] for r in responses]
-        value_counts = Counter(values)
 
-        return value_counts.most_common(1)[0][0]
-    else:
-        return None
+def compose(inner, outer):
+    def composed(*args, **kwargs):
+        return outer(inner(*args, **kwargs))
+    return composed
+
+
+def unpack(data: str) -> dict:
+    import json
+    result = None
+    try:
+        result = json.loads(data)
+    finally:
+        return result
+
+
+def filtering_by(reference_type):
+    return partial(filter, lambda it: type(it) is reference_type)

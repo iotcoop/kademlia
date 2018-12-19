@@ -1,13 +1,16 @@
 import json
 import logging
 import time
+from collections import defaultdict
 from copy import deepcopy
 from enum import Enum
+from functools import partial
+from itertools import chain
 
 from kademlia.config import Config
 from kademlia.crypto import Crypto
 from kademlia.exceptions import InvalidValueFormatException, UnauthorizedOperationException, InvalidSignException
-from kademlia.utils import digest
+from kademlia.utils import digest, compose, get_field, unpack, filtering_by
 
 log = logging.getLogger(__name__)
 
@@ -115,6 +118,10 @@ class Value(JsonSerializable):
     def __eq__(self, other):
         return self.to_json() == other.to_json()
 
+    def __hash__(self):
+        dval = digest(self.__dkey.hex() + self.data + str(self.authorization.pub_key.exp_time) + str(self.persist_mode))
+        return int(dval.hex(), 16)
+
     @property
     def data(self):
         return self._data
@@ -152,7 +159,6 @@ class Value(JsonSerializable):
         self._authorization = authorization
 
     def is_valid(self):
-        from kademlia.utils import digest
         dval = digest(self.__dkey.hex() + self.data + str(self.authorization.pub_key.exp_time) + str(self.persist_mode))
         return Crypto.check_signature(dval, self.authorization.sign, self.authorization.pub_key.key)
 
@@ -169,8 +175,6 @@ class Value(JsonSerializable):
     @staticmethod
     def of_params(dkey: bytes, data: str, persist_mode: PersistMode, time=None, priv_key_path=Config.PRIVATE_KEY_PATH,
                   pub_key_path=Config.PUBLIC_KEY_PATH):
-        from kademlia.utils import digest
-
         log.debug(f'Going to sign {data} with key: [{dkey.hex()}]')
 
         dval = digest(dkey.hex() + str(data) + str(time) + str(persist_mode))
@@ -301,27 +305,26 @@ class NodeMessage(JsonSerializable):
         self._authorization = authorization
 
     def is_valid(self):
-        from kademlia.utils import digest
         dval = digest(self.__dkey.hex() + self.data + str(self.authorization.pub_key.exp_time))
         pub_key = self.authorization.pub_key.key
         return Crypto.check_signature(dval, self.authorization.sign, pub_key)
 
     @staticmethod
-    def of_params(dkey: bytes, data: str, time=None, priv_key_path=Config.PRIVATE_KEY_PATH,
+    def of_params(dkey: bytes, data, exp_time=None, priv_key_path=Config.PRIVATE_KEY_PATH,
                   pub_key_path=Config.PUBLIC_KEY_PATH):
-
-        from kademlia.utils import digest
-
         log.debug(f'Going to sign {data} with key: [{dkey.hex()}]')
 
-        dval = digest(dkey.hex() + str(data) + str(time))
+        if isinstance(data, Value) or isinstance(data, ControlledValue):
+            data = str(data)
+
+        dval = digest(dkey.hex() + str(data) + str(exp_time))
         with open(priv_key_path) as priv_key:
             signature = Crypto.get_signature(dval, priv_key.read()).hex()
         with open(pub_key_path) as pub_key:
             pub_key = pub_key.read()
         log.debug(f'Successfully signed data with key: [{dkey.hex()}]')
 
-        return NodeMessage(dkey, data, Authorization(PublicKey(pub_key, time), signature))
+        return NodeMessage(dkey, data, Authorization(PublicKey(pub_key, exp_time), signature))
 
 
 def is_new_value_valid(dkey, stored_value: Value, new_value: Value):
@@ -380,6 +383,41 @@ def validate_controlled_value(dkey, new_value: Value, stored_value: list):
         controlled_value[val['authorization']['pub_key']['key']] = Value.of_json(dkey, val)
     if nv_pub_key in controlled_value.keys() and not is_new_value_valid(dkey, controlled_value.get(nv_pub_key), new_value):
             raise UnauthorizedOperationException()
+
+
+def select_most_common_response(dkey, responses):
+    from collections import Counter
+
+    unpack_inner_object = compose(get_field('data'), unpack)
+    json_to_value = to_value_with_key(dkey)
+
+    if responses:
+        if not isinstance(responses, list):
+            responses = [responses]
+
+        values = [unpack_inner_object(r) for r in responses]
+        most_common_type = Counter(map(lambda it: type(it), values)).most_common(1)[0][0]
+        values = list(filtering_by(most_common_type)(values))
+
+        if most_common_type is list:
+
+            pub_key_value = list(map(lambda x: (x.authorization.pub_key.key, x), map(json_to_value, chain(*values))))
+            grouped = defaultdict(list)
+            for el in pub_key_value:
+                grouped[el[0]].append(el[1])
+
+            result = ControlledValue(dkey, [Counter(key_values).most_common(1)[0][0] for key_values in grouped.values()])
+
+        else:
+            result = Counter(map(json_to_value, values)).most_common(1)[0][0]
+
+        return result
+    else:
+        return None
+
+
+def to_value_with_key(key):
+    return partial(Value.of_json, key)
 
 
 def check_pkey_type(hex_pub_key):
