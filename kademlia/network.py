@@ -7,10 +7,10 @@ import pickle
 import asyncio
 import logging
 
-from kademlia.domain.domain import Value, PersistMode, NodeResponse
+from kademlia.domain.domain import Value, NodeMessage, ControlledValue, ValueFactory, validate_secure_value
+from kademlia.exceptions import UnauthorizedOperationException
 from kademlia.protocol import KademliaProtocol
-from kademlia.utils import digest, validate_authorization, select_most_common_response, validate_controlled_value,\
-    validate_secure_value
+from kademlia.utils import digest, select_most_common_response
 from kademlia.storage import ForgetfulStorage
 from kademlia.node import Node
 from kademlia.crawling import ValueSpiderCrawl
@@ -99,7 +99,15 @@ class Server(object):
 
         # now republish keys older than one hour
         for dkey, value in self.storage.iteritemsOlderThan(3600):
-            await self.set_digest(dkey, value, value)
+            values_to_republish = []
+            parsed_val = json.loads(value)
+            if isinstance(parsed_val, list):
+                [values_to_republish.append(json.dumps(val)) for val in parsed_val]
+            else:
+                values_to_republish.append(value)
+
+            for val in values_to_republish:
+                await self._call_remote_persist(dkey, val)
 
     def bootstrappableNeighbors(self):
         """
@@ -150,21 +158,21 @@ class Server(object):
         nearest = self.protocol.router.findNeighbors(node)
         if len(nearest) == 0:
             log.warning("There are no known neighbors to get key %s", key)
-            return Value.of_params(dkey, None).to_dict()
+            return NodeMessage.of_params(dkey, None)
         spider = ValueSpiderCrawl(self.protocol, node, nearest,
                                   self.ksize, self.alpha)
 
         local_value = self.storage.get(dkey, None)
 
         if local_value:
-            local_value = NodeResponse.of_params(dkey, local_value).to_dict()
+            local_value = NodeMessage.of_params(dkey, local_value).to_json()
             responses = await spider.find([local_value])
         else:
             responses = await spider.find()
 
         most_common_response = select_most_common_response(responses)
 
-        return NodeResponse.of_params(dkey, most_common_response).to_dict()
+        return NodeMessage.of_params(dkey, most_common_response)
 
     async def set(self, key, new_value: Value):
         """
@@ -172,38 +180,42 @@ class Server(object):
         """
 
         log.info(f"Going to set {key} = {new_value} on network")
+        log.debug("Going to process save request")
 
+        if not new_value.is_valid():
+            raise UnauthorizedOperationException()
+        await self._persist_locally(key, new_value)
+        return await self._call_remote_persist(key, str(new_value))
+
+    async def _persist_locally(self, key, new_value: Value):
+        """
+        Validate and persist new value locally
+        :param key: plain value key
+        :param new_value: new value to persist on the network
+        """
         dkey = digest(key)
 
-        log.debug("Going to process save request")
-        validate_authorization(dkey, new_value)
-
         log.debug(f"Going to retrieve stored value for key: {dkey}")
-        value_response_json = await self.get(key)
+        value_response = await self.get(key)
 
-        if value_response_json['data']:
-            stored_value = json.loads(value_response_json['data'])
-            if isinstance(stored_value, list):
-                validate_controlled_value(dkey, new_value, stored_value)
-                cv_dict = {val['authorization']['pub_key']['key']: Value.of_json(dkey, val) for val in stored_value}
-                cv_dict.update({new_value.authorization.pub_key.key: new_value})
-                result = [val.to_dict() for val in cv_dict.values()]
+        if value_response.data:
+            stored_value = ValueFactory.create_from_string(dkey, value_response.data)
+            if isinstance(stored_value, ControlledValue):
+                result = stored_value.add_value(new_value)
             else:
                 validate_secure_value(dkey, new_value, stored_value)
-                result = new_value.to_dict()
+                result = new_value
         else:
-            if new_value.persist_mode == PersistMode.SECURED:
-                result = new_value.to_dict()
-            else:
-                result = [new_value.to_dict()]
+            result = ValueFactory.create_from_value(new_value)
 
-        return await self.set_digest(dkey, json.dumps(result), json.dumps(new_value.to_dict()))
+        self.storage[dkey] = str(result)
 
-    async def set_digest(self, dkey, l_value, r_value):
+    async def _call_remote_persist(self, key, value: str):
         """
         Set the given SHA1 digest key (bytes) to the given value in the
         network.
         """
+        dkey = digest(key)
         node = Node(dkey)
 
         nearest = self.protocol.router.findNeighbors(node)
@@ -217,11 +229,7 @@ class Server(object):
         nodes = await spider.find()
         log.info("setting '%s' on %s", dkey.hex(), list(map(str, nodes)))
 
-        # if this node is close too, then store here as well
-        biggest = max([n.distanceTo(node) for n in nodes])
-        if self.node.distanceTo(node) < biggest:
-            self.storage[dkey] = l_value
-        ds = [self.protocol.callStore(n, dkey, r_value) for n in nodes]
+        ds = [self.protocol.callStore(n, dkey, value) for n in nodes]
         # return true only if at least one store call succeeded
         return any(await asyncio.gather(*ds))
 

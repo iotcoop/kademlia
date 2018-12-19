@@ -6,10 +6,9 @@ import logging
 from rpcudp.protocol import RPCProtocol
 
 from kademlia.config import Config
-from kademlia.utils import digest, validate_authorization, check_new_value_valid, select_most_common_response, \
-    validate_secure_value, validate_controlled_value
+from kademlia.utils import digest, select_most_common_response
 from kademlia.crawling import ValueSpiderCrawl
-from kademlia.domain.domain import Value, PersistMode, NodeResponse
+from kademlia.domain.domain import Value, NodeMessage, validate_secure_value, ValueFactory, ControlledValue
 from kademlia.exceptions import UnauthorizedOperationException, InvalidSignException, InvalidValueFormatException
 from kademlia.node import Node
 from kademlia.routing import RoutingTable
@@ -19,7 +18,7 @@ log = logging.getLogger(__name__)
 
 class KademliaProtocol(RPCProtocol):
     def __init__(self, sourceNode, storage, ksize):
-        RPCProtocol.__init__(self)
+        RPCProtocol.__init__(self, waitTimeout=100)
         self.router = RoutingTable(self, ksize, sourceNode)
         self.storage = storage
         self.sourceNode = sourceNode
@@ -37,9 +36,6 @@ class KademliaProtocol(RPCProtocol):
     def rpc_stun(self, sender):
         return sender
 
-    def rpc_known_nodes(self):
-        return [node for bucket in self.router.buckets for node in bucket.nodes.values()]
-
     def rpc_ping(self, sender, nodeid):
         source = Node(nodeid, sender[0], sender[1])
         self.welcomeIfNewNode(source)
@@ -54,49 +50,25 @@ class KademliaProtocol(RPCProtocol):
             source = Node(nodeid, sender[0], sender[1])
             self.welcomeIfNewNode(source)
             log.debug(f"Received value for key {key.hex()} is valid,"
-                      f" going to retrieve values stored under key : {key.hex()}")
-            stored_value_json = await self.__get_most_common(key)
+                      f" going to retrieve values stored under given key")
+            stored_value_json = await self._get_most_common(key)
+            new_value = Value.of_json(key, value_json)
+            if not new_value.is_valid():
+                raise InvalidSignException(f"Invalid signature for value {value}")
 
-            if isinstance(value_json, list):
-                for val in value_json:
-                    val = Value.of_json(key, val)
-                    assert val.persist_mode == PersistMode.CONTROLLED
-                    validate_authorization(key, val)
-
-                if stored_value_json:
-                    stored_value = json.loads(stored_value_json)
-                    if isinstance(stored_value, list):
-                        #TODO: Need timestamp
-                        sv_dict = {val['authorization']['pub_key']['key']: Value.of_json(key, val) for val in stored_value}
-                        nv_dict = {val['authorization']['pub_key']['key']: Value.of_json(key, val) for val in value_json}
-                        sv_dict.update(nv_dict)
-                        result = [val.to_dict() for val in sv_dict.values()]
-                    else:
-                        raise UnauthorizedOperationException()
+            if stored_value_json:
+                stored_value = ValueFactory.create_from_string(key, stored_value_json)
+                if isinstance(stored_value, ControlledValue):
+                    result = stored_value.add_value(new_value)
                 else:
-                    result = value
+                    validate_secure_value(key, new_value, stored_value)
+                    result = new_value
             else:
-                des_value = Value.of_json(key, value_json)
-                validate_authorization(key, des_value)
+                result = ValueFactory.create_from_value(new_value)
 
-                if stored_value_json:
-                    stored_value = json.loads(stored_value_json)
-                    if isinstance(stored_value, list):
-                        validate_controlled_value(key, des_value, stored_value)
-                        cv_dict = {val['authorization']['pub_key']['key']: Value.of_json(key, val) for val in stored_value}
-                        cv_dict.update({des_value.authorization.pub_key.key: des_value})
-                        result = [val.to_dict() for val in cv_dict.values()]
-                    else:
-                        validate_secure_value(key, des_value, stored_value)
-                        result = des_value.to_dict()
-                else:
-                    if des_value.persist_mode == PersistMode.SECURED:
-                        result = des_value.to_dict()
-                    else:
-                        result = [des_value.to_dict()]
+            self.storage[key] = str(result)
 
-            self.storage[key] = json.dumps(result)
-
+            return True
         except AssertionError:
             log.exception("Unable to store value, got value with unsupported format: %s", value)
 
@@ -109,18 +81,7 @@ class KademliaProtocol(RPCProtocol):
         except InvalidValueFormatException:
             log.exception("Invalid value format, value should contain authorization")
 
-        return True
-
-    async def _handle_secured_value_store(self, json_parsed_value, key):
-        des_value = Value.of_json(key, json_parsed_value)
-        if des_value.authorization is not None:
-            validate_authorization(key, des_value)
-        log.debug(f"Received value for key {key.hex()} is valid,"
-                  f" going to retrieve values stored under key : {key.hex}")
-        stored_value_json = await self.__get_most_common(key)
-        if stored_value_json:
-            stored_value = Value.of_json(key, json.loads(stored_value_json))
-            check_new_value_valid(key, stored_value, des_value)
+        return False
 
     def rpc_find_node(self, sender, nodeid, key):
         log.info("finding neighbors of %i in local table",
@@ -137,7 +98,7 @@ class KademliaProtocol(RPCProtocol):
         value = self.storage.get(key, None)
         if value is None:
             return self.rpc_find_node(sender, nodeid, key)
-        signed_value = NodeResponse.of_params(key, value).to_dict()
+        signed_value = NodeMessage.of_params(key, value).to_json()
         return signed_value
 
     async def callFindNode(self, nodeToAsk, nodeToFind):
@@ -160,11 +121,6 @@ class KademliaProtocol(RPCProtocol):
     async def callStore(self, nodeToAsk, key, value):
         address = (nodeToAsk.ip, nodeToAsk.port)
         result = await self.store(address, self.sourceNode.id, key, value)
-        return self.handleCallResponse(result, nodeToAsk)
-
-    async def callKnownNodes(self, nodeToAsk):
-        address = (nodeToAsk.ip, nodeToAsk.port)
-        result = await self.known_nodes(address)
         return self.handleCallResponse(result, nodeToAsk)
 
     def welcomeIfNewNode(self, node):
@@ -194,7 +150,22 @@ class KademliaProtocol(RPCProtocol):
                 first = neighbors[0].distanceTo(keynode)
                 thisNodeClosest = self.sourceNode.distanceTo(keynode) < first
             if len(neighbors) == 0 or (newNodeClose and thisNodeClosest):
-                asyncio.ensure_future(self.callStore(node, key, value))
+                values_to_republish = []
+
+                try:
+                    parsed_val = json.loads(value)
+                    if isinstance(parsed_val, list):
+                        [values_to_republish.append(json.dumps(val)) for val in parsed_val]
+                    else:
+                        values_to_republish.append(value)
+
+                    for val in values_to_republish:
+                        asyncio.ensure_future(self.callStore(node, key, val))
+
+                except Exception as ex:
+                    log.exception(ex)
+                    continue
+
         self.router.addContact(node)
 
     def handleCallResponse(self, result, node):
@@ -211,7 +182,7 @@ class KademliaProtocol(RPCProtocol):
         self.welcomeIfNewNode(node)
         return result
 
-    async def __get_most_common(self, key):
+    async def _get_most_common(self, key):
         log.info("Looking up key %s", key.hex())
         node = Node(key)
         nearest = self.router.findNeighbors(node)
@@ -223,7 +194,7 @@ class KademliaProtocol(RPCProtocol):
         spider = ValueSpiderCrawl(self, node, nearest, Config.K_SIZE, Config.ALPHA)
 
         if local_value:
-            local_value = NodeResponse.of_params(key, local_value).to_dict()
+            local_value = NodeMessage.of_params(key, local_value).to_json()
             responses = await spider.find([local_value])
         else:
             responses = await spider.find()
