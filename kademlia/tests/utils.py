@@ -30,17 +30,27 @@ class FakeProtocol:
 
 
 def get_signed_value_with_keys(priv_key_path, pub_key_path):
+        with open(priv_key_path) as priv_key_file:
+            priv_key = priv_key_file.read()
+
+        with open(pub_key_path) as pub_key_file:
+            pub_key = pub_key_file.read()
 
         def get_signed_value(dkey, value, persist_mode):
-            return Value.of_params(dkey, value, persist_mode, None, priv_key_path, pub_key_path)
+            return Value.of_params(dkey, value, persist_mode, None, priv_key, pub_key)
 
         return get_signed_value
 
 
 def get_signed_message_with_keys(priv_key_path, pub_key_path):
+        with open(priv_key_path) as priv_key_file:
+            priv_key = priv_key_file.read()
+
+        with open(pub_key_path) as pub_key_file:
+            pub_key = pub_key_file.read()
 
         def get_signed_message(dkey, value):
-            return NodeMessage.of_params(dkey, value, None, priv_key_path, pub_key_path)
+            return NodeMessage.of_params(dkey, value, None, priv_key, pub_key)
 
         return get_signed_message
 

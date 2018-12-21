@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import Mock, ANY
 
 from kademlia.crypto import Crypto
 from kademlia.domain.domain import PublicKey, PersistMode

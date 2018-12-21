@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 from kademlia.crypto import Crypto
 from kademlia.domain.domain import PersistMode, is_new_value_valid, validate_authorization
-from kademlia.exceptions import InvalidSignException, UnauthorizedOperationException
+from kademlia.exceptions import InvalidSignException
 from kademlia.utils import digest, sharedPrefix, OrderedSet
 
 

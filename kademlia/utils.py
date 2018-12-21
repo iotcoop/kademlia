@@ -61,6 +61,16 @@ def bytesToBitString(bites):
     return "".join(bits)
 
 
+def load_from_file(file_path):
+    log.debug(f'Going to load file with path: {file_path}')
+    try:
+        with open(file_path) as file:
+            return file.read()
+    except Exception as ex:
+        log.exception(ex)
+        return None
+
+
 def get_field(field_name: str):
     def get_from(value: dict) -> str:
         return value.get(field_name) if value else None

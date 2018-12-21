@@ -1,5 +1,7 @@
 import os
 
+from kademlia.utils import load_from_file
+
 
 class Config:
 
@@ -10,3 +12,6 @@ class Config:
 
     PRIVATE_KEY_PATH = os.getenv('PRIVATE_KEY_PATH', 'key.der')
     PUBLIC_KEY_PATH = os.getenv('PUBLIC_KEY_PATH', 'public.der')
+
+    NODE_PRIVATE_KEY = load_from_file(PRIVATE_KEY_PATH)
+    NODE_PUBLIC_KEY = load_from_file(PUBLIC_KEY_PATH)

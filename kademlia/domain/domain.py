@@ -173,15 +173,12 @@ class Value(JsonSerializable):
         return Value.of_json(key, dct)
 
     @staticmethod
-    def of_params(dkey: bytes, data: str, persist_mode: PersistMode, time=None, priv_key_path=Config.PRIVATE_KEY_PATH,
-                  pub_key_path=Config.PUBLIC_KEY_PATH):
+    def of_params(dkey: bytes, data: str, persist_mode: PersistMode, time=None, priv_key=Config.NODE_PRIVATE_KEY,
+                  pub_key=Config.NODE_PUBLIC_KEY):
         log.debug(f'Going to sign {data} with key: [{dkey.hex()}]')
 
         dval = digest(dkey.hex() + str(data) + str(time) + str(persist_mode))
-        with open(priv_key_path) as priv_key:
-            signature = Crypto.get_signature(dval, priv_key.read()).hex()
-        with open(pub_key_path) as pub_key:
-            pub_key = pub_key.read()
+        signature = Crypto.get_signature(dval, priv_key).hex()
         log.debug(f'Successfully signed data with key: [{dkey.hex()}]')
 
         return Value(dkey, data, str(persist_mode), Authorization(PublicKey(pub_key, time), signature))
@@ -310,18 +307,15 @@ class NodeMessage(JsonSerializable):
         return Crypto.check_signature(dval, self.authorization.sign, pub_key)
 
     @staticmethod
-    def of_params(dkey: bytes, data, exp_time=None, priv_key_path=Config.PRIVATE_KEY_PATH,
-                  pub_key_path=Config.PUBLIC_KEY_PATH):
+    def of_params(dkey: bytes, data, exp_time=None, priv_key=Config.NODE_PRIVATE_KEY,
+                  pub_key=Config.NODE_PUBLIC_KEY):
         log.debug(f'Going to sign {data} with key: [{dkey.hex()}]')
 
         if isinstance(data, Value) or isinstance(data, ControlledValue):
             data = str(data)
 
         dval = digest(dkey.hex() + str(data) + str(exp_time))
-        with open(priv_key_path) as priv_key:
-            signature = Crypto.get_signature(dval, priv_key.read()).hex()
-        with open(pub_key_path) as pub_key:
-            pub_key = pub_key.read()
+        signature = Crypto.get_signature(dval, priv_key).hex()
         log.debug(f'Successfully signed data with key: [{dkey.hex()}]')
 
         return NodeMessage(dkey, data, Authorization(PublicKey(pub_key, exp_time), signature))
