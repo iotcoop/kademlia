@@ -29,7 +29,7 @@ def from_dtl(url):
 
 def get_json(url):
     try:
-        log.debug(f"Executing GET request or url: {url}")
+        log.debug(f"Executing GET request on url: {url}")
         response = requests.get(url)
         response.raise_for_status()
         return response.json()
