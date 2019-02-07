@@ -7,17 +7,20 @@ import pickle
 import asyncio
 import logging
 
+from kademlia.config import Config
 from kademlia.domain.domain import Value, NodeMessage, ControlledValue, ValueFactory, validate_secure_value, \
     select_most_common_response
 from kademlia.exceptions import UnauthorizedOperationException
 from kademlia.protocol import KademliaProtocol
-from kademlia.utils import digest
+from kademlia.repository import ValidatorRepository, from_dtl, compose_url
+from kademlia.utils import digest, digest256
 from kademlia.storage import ForgetfulStorage
 from kademlia.node import Node
 from kademlia.crawling import ValueSpiderCrawl
 from kademlia.crawling import NodeSpiderCrawl
 
 log = logging.getLogger(__name__)
+validatorRepository = ValidatorRepository(from_dtl(compose_url(Config.VALIDATOR_URL, 'state'))(Config.DHT_NAMESPACE))
 
 
 class Server(object):
@@ -199,6 +202,9 @@ class Server(object):
         log.debug(f"Going to retrieve stored value for key: {dkey}")
         value_response = await self.get(key)
 
+        if not self._get_dtl_record(dkey, new_value):
+            raise UnauthorizedOperationException()
+
         if value_response.data:
             stored_value = ValueFactory.create_from_string(dkey, value_response.data)
             if isinstance(stored_value, ControlledValue):
@@ -210,6 +216,12 @@ class Server(object):
             result = ValueFactory.create_from_value(new_value)
 
         self.storage[dkey] = str(result)
+
+    @staticmethod
+    def _get_dtl_record(dkey, new_value):
+        val_sign = new_value.authorization.sign
+        value__hash = digest256(dkey.hex() + val_sign).hex()
+        return validatorRepository.get_by_id(value__hash)
 
     async def _call_remote_persist(self, key, value: str):
         """

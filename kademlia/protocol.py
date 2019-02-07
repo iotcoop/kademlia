@@ -6,7 +6,8 @@ import logging
 from rpcudp.protocol import RPCProtocol
 
 from kademlia.config import Config
-from kademlia.utils import digest
+from kademlia.repository import ValidatorRepository, from_dtl, compose_url
+from kademlia.utils import digest, digest256
 from kademlia.crawling import ValueSpiderCrawl
 from kademlia.domain.domain import Value, NodeMessage, validate_secure_value, ValueFactory, ControlledValue,\
     select_most_common_response
@@ -15,6 +16,7 @@ from kademlia.node import Node
 from kademlia.routing import RoutingTable
 
 log = logging.getLogger(__name__)
+validatorRepository = ValidatorRepository(from_dtl(compose_url(Config.VALIDATOR_URL, 'state'))(Config.DHT_NAMESPACE))
 
 
 class KademliaProtocol(RPCProtocol):
@@ -48,6 +50,9 @@ class KademliaProtocol(RPCProtocol):
 
         try:
             value_json = json.loads(value)
+            if not self._get_dtl_record(key, value_json):
+                raise UnauthorizedOperationException()
+
             source = Node(nodeid, sender[0], sender[1])
             self.welcomeIfNewNode(source)
             log.debug(f"Received value for key {key.hex()} is valid,"
@@ -82,6 +87,11 @@ class KademliaProtocol(RPCProtocol):
             log.exception("Invalid value format, value should contain authorization")
 
         return False
+
+    @staticmethod
+    def _get_dtl_record(key, value_json):
+        value__hash = digest256(key.hex() + value_json['authorization']['sign']).hex()
+        return validatorRepository.get_by_id(value__hash)
 
     def rpc_find_node(self, sender, nodeid, key):
         log.info("finding neighbors of %i in local table",

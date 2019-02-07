@@ -22,6 +22,18 @@ def digest(s):
     return hashlib.sha1(s).digest()
 
 
+def digest256(s):
+    if not isinstance(s, bytes):
+        s = str(s).encode('utf8')
+    return hashlib.sha256(s).digest()
+
+
+def digest512(s):
+    if not isinstance(s, bytes):
+        s = str(s).encode('utf8')
+    return hashlib.sha512(s).digest()
+
+
 class OrderedSet(list):
     """
     Acts like a list in all ways, except in the behavior of the

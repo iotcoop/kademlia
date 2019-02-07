@@ -15,3 +15,9 @@ class Config:
 
     NODE_PRIVATE_KEY = load_from_file(PRIVATE_KEY_PATH)
     NODE_PUBLIC_KEY = load_from_file(PUBLIC_KEY_PATH)
+
+    # Sawtooth properties
+    DHT_NAMESPACE = 'eqt_dht.values'
+    VALIDATOR_HOST = os.getenv('VALIDATOR_HOST', '127.0.0.1')
+    VALIDATOR_PORT = os.getenv('VALIDATOR_PORT', '8008')
+    VALIDATOR_URL = f'http://{VALIDATOR_HOST}:{VALIDATOR_PORT}'
