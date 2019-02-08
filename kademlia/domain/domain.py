@@ -173,15 +173,15 @@ class Value(JsonSerializable):
         return Value.of_json(key, dct)
 
     @staticmethod
-    def of_params(dkey: bytes, data: str, persist_mode: PersistMode, time=None, priv_key=Config.NODE_PRIVATE_KEY,
+    def of_params(dkey: bytes, data: str, persist_mode: PersistMode, exp_time=None, priv_key=Config.NODE_PRIVATE_KEY,
                   pub_key=Config.NODE_PUBLIC_KEY):
         log.debug(f'Going to sign {data} with key: [{dkey.hex()}]')
 
-        dval = digest(dkey.hex() + str(data) + str(time) + str(persist_mode))
+        dval = digest(dkey.hex() + str(data) + str(exp_time) + str(persist_mode))
         signature = Crypto.get_signature(dval, priv_key).hex()
         log.debug(f'Successfully signed data with key: [{dkey.hex()}]')
 
-        return Value(dkey, data, str(persist_mode), Authorization(PublicKey(pub_key, time), signature))
+        return Value(dkey, data, str(persist_mode), Authorization(PublicKey(pub_key, exp_time), signature))
 
 
 class ControlledValue(JsonSerializable):
