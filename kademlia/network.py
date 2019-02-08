@@ -20,7 +20,7 @@ from kademlia.crawling import ValueSpiderCrawl
 from kademlia.crawling import NodeSpiderCrawl
 
 log = logging.getLogger(__name__)
-validatorRepository = ValidatorRepository(from_dtl(compose_url(Config.VALIDATOR_URL, 'state'))(Config.DHT_NAMESPACE))
+validatorRepository = ValidatorRepository(from_dtl(compose_url(Config.SAWTOOTH_REST_API_URL, 'state'))(Config.DHT_NAMESPACE))
 
 
 class Server(object):

@@ -18,6 +18,6 @@ class Config:
 
     # Sawtooth properties
     DHT_NAMESPACE = 'eqt_dht.values'
-    VALIDATOR_HOST = os.getenv('VALIDATOR_HOST', '127.0.0.1')
-    VALIDATOR_PORT = os.getenv('VALIDATOR_PORT', '8008')
-    VALIDATOR_URL = f'http://{VALIDATOR_HOST}:{VALIDATOR_PORT}'
+    SAWTOOTH_REST_API_HOST = os.getenv('SAWTOOTH_REST_API_HOST', '127.0.0.1')
+    SAWTOOTH_REST_API_PORT = os.getenv('SAWTOOTH_REST_API_PORT', '8008')
+    SAWTOOTH_REST_API_URL = f'http://{SAWTOOTH_REST_API_HOST}:{SAWTOOTH_REST_API_PORT}'

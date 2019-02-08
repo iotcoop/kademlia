@@ -16,7 +16,7 @@ from kademlia.node import Node
 from kademlia.routing import RoutingTable
 
 log = logging.getLogger(__name__)
-validatorRepository = ValidatorRepository(from_dtl(compose_url(Config.VALIDATOR_URL, 'state'))(Config.DHT_NAMESPACE))
+validatorRepository = ValidatorRepository(from_dtl(compose_url(Config.SAWTOOTH_REST_API_URL, 'state'))(Config.DHT_NAMESPACE))
 
 
 class KademliaProtocol(RPCProtocol):
