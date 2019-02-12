@@ -50,9 +50,6 @@ class KademliaProtocol(RPCProtocol):
 
         try:
             value_json = json.loads(value)
-            if not self._get_dtl_record(key, value_json):
-                raise UnauthorizedOperationException()
-
             source = Node(nodeid, sender[0], sender[1])
             self.welcomeIfNewNode(source)
             log.debug(f"Received value for key {key.hex()} is valid,"
@@ -70,6 +67,9 @@ class KademliaProtocol(RPCProtocol):
                     result = new_value
             else:
                 result = ValueFactory.create_from_value(new_value)
+
+            if not self._get_dtl_record(key, value_json):
+                raise UnauthorizedOperationException()
 
             self.storage[key] = str(result)
 
