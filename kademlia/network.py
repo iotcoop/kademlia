@@ -202,6 +202,9 @@ class Server(object):
         log.debug(f"Going to retrieve stored value for key: {dkey}")
         value_response = await self.get(key)
 
+        if not self._get_dtl_record(dkey, new_value):
+            raise UnauthorizedOperationException()
+
         if value_response.data:
             stored_value = ValueFactory.create_from_string(dkey, value_response.data)
             if isinstance(stored_value, ControlledValue):

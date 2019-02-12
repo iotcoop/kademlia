@@ -22,11 +22,6 @@ elif [ "$SPARK_MODE" = WORKER ] ; then
         echo "Worker web ui port was not specified, default will be used: 8084"
     fi
 
-    if [ -z "$SPARK_WORKER_WEBUI_PORT" ]; then
-        SPARK_WORKER_WEBUI_PORT=8084
-        echo "Worker web ui port was not specified, default will be used: 8084"
-    fi
-
     if [ -z "$SPARK_MASTER_HOST" ]; then
         echo "Please specify master IP by setting MASTER_IP env variable"
         exit 0
