@@ -71,6 +71,9 @@ class KademliaProtocol(RPCProtocol):
             else:
                 result = ValueFactory.create_from_value(new_value)
 
+            if not self._get_dtl_record(key, value_json):
+                raise UnauthorizedOperationException()
+
             self.storage[key] = str(result)
 
             return True

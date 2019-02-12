@@ -215,6 +215,9 @@ class Server(object):
         else:
             result = ValueFactory.create_from_value(new_value)
 
+        if not self._get_dtl_record(dkey, new_value):
+            raise UnauthorizedOperationException()
+
         self.storage[dkey] = str(result)
 
     @staticmethod
