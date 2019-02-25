@@ -82,6 +82,7 @@ class ServerTests(unittest.TestCase):
             server._call_remote_persist = Mock(return_value=async_return(True))
             server.get = Mock(return_value=async_return(get_signed_message(dkey_test, data)))
             server.set_digest = Mock(return_value=async_return(True))
+            Server._get_dtl_record = Mock(return_value=True)
 
             await server.set('test key', value)
 
