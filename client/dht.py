@@ -1,7 +1,7 @@
 import logging
 import asyncio
 import sys
-
+import os
 from aiohttp import web
 
 from kademlia.domain.domain import Value
@@ -9,6 +9,7 @@ from kademlia.exceptions import InvalidSignException, UnauthorizedOperationExcep
 from kademlia.network import Server
 from kademlia.storage import DiskStorage
 from kademlia.utils import digest
+from kademlia.config import Config
 
 
 async def read_key(request):
@@ -40,9 +41,8 @@ async def set_value(request):
 
 
 if __name__ == '__main__':
-    KADEMLIA_PORT = int(sys.argv[3])
-    CONNECT_PORT = int(sys.argv[2])
-    API_PORT = int(sys.argv[4])
+    KADEMLIA_PORT = int(sys.argv[1])
+    API_PORT = int(sys.argv[2])
     KEY_ABSENT_MESSAGE = 'No such key'
     NO_KEYS = 'No keys'
 
@@ -60,9 +60,8 @@ if __name__ == '__main__':
     log.addHandler(handler)
     log.setLevel(logging.DEBUG)
 
-    if sys.argv[1] != "127.0.0.1":
-        bootstrap_node = (sys.argv[1], CONNECT_PORT)
-        loop.run_until_complete(server.bootstrap([bootstrap_node]))
+    if Config.BOOTSTRAP_NODES:
+        loop.run_until_complete(server.bootstrap(Config.BOOTSTRAP_NODES))
 
     app = web.Application()
     app.add_routes([web.get('/dht/{key}', read_key)])

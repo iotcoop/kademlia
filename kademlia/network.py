@@ -161,8 +161,12 @@ class Server(object):
         node = Node(dkey)
         nearest = self.protocol.router.findNeighbors(node)
         if len(nearest) == 0:
-            log.warning("There are no known neighbors to get key %s", key)
-            return NodeMessage.of_params(dkey, None)
+            log.debug("Trying to re-connect to bootstrap nodes: %s", Config.BOOTSTRAP_NODES)
+            await self.bootstrap(Config.BOOTSTRAP_NODES)
+            if not self.protocol.router.findNeighbors(node):
+                log.warning("There are no known neighbors to get key %s", key)
+                return NodeMessage.of_params(dkey, None)
+
         spider = ValueSpiderCrawl(self.protocol, node, nearest,
                                   self.ksize, self.alpha)
 

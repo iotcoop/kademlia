@@ -9,6 +9,7 @@ class Config:
     K_SIZE = os.getenv('K_SIZE', 20)
     ALPHA = os.getenv('ALPHA', 3)
     VALUES_TO_WAIT = os.getenv('VALUES_TO_WAIT', 20)
+    BOOTSTRAP_NODES = [(addr[0], int(addr[1])) for addr in (tuple(node_addr.split(':')) for node_addr in os.getenv('BOOTSTRAP_NODES').split(','))] if os.getenv('BOOTSTRAP_NODES') else None
 
     PRIVATE_KEY_PATH = os.getenv('PRIVATE_KEY_PATH', 'key.der')
     PUBLIC_KEY_PATH = os.getenv('PUBLIC_KEY_PATH', 'public.der')
