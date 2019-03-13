@@ -1,4 +1,4 @@
-FROM eqitii/eqitii-kademlia:0.1.8
+FROM eqitii/eqitii-kademlia:0.1.10
 
 RUN apk add openssl
 RUN apk add sed
